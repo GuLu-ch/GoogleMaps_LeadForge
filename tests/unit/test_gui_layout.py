@@ -4,6 +4,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QScrollArea
 
 from gmap_collector.app import create_application
+from gmap_collector.config.schemas import CityConfig, CountryConfig, LocationsConfig, RegionConfig
+from gmap_collector.gui.task_config_page import TaskConfigPage
+from gmap_collector.storage.task_repository import KeywordTaskCreate
 
 
 def test_settings_page_exposes_global_runtime_controls():
@@ -94,5 +97,104 @@ def test_main_window_and_pages_support_adaptive_layout():
     assert window.task_config_page.create_task_button.parent() is window.task_config_page
     assert window.settings_page.save_settings_button.parent() is window.settings_page
 
+    window.close()
+    application.quit()
+
+
+def test_main_window_creates_batch_with_runtime_config_snapshot():
+    """从 GUI 创建任务时，应把本次运行参数保存到任务批次快照中。"""
+    application, window = create_application()
+
+    window.task_config_page.clear_regions()
+    first_checkbox = next(iter(window.task_config_page.region_checkboxes.values()))
+    first_checkbox.setChecked(True)
+    window.task_config_page.keyword_input.setPlainText("Car Wrap Shop")
+    window.task_config_page.max_scroll_rounds_spin.setValue(7)
+    window.task_config_page.scroll_wait_min_spin.setValue(2)
+    window.task_config_page.scroll_wait_max_spin.setValue(5)
+    window.create_task_batch_from_preview()
+
+    batch = window.task_repository.get_batch(window.current_batch_id)
+
+    assert batch["runtime_config"]["browser_name"] == "chrome"
+    assert batch["runtime_config"]["max_scroll_rounds"] == 7
+    assert batch["runtime_config"]["scroll_wait_seconds_min"] == 2
+    assert batch["runtime_config"]["scroll_wait_seconds_max"] == 5
+
+    window.close()
+    application.quit()
+
+
+def test_main_window_retries_failed_tasks_from_task_run_page():
+    """任务执行页的重试按钮应能把失败关键词还原为待执行。"""
+    application, window = create_application()
+    batch_id = window.task_repository.create_batch("测试批次")
+    window.task_repository.add_keyword_tasks(
+        batch_id,
+        [
+            KeywordTaskCreate(
+                keyword="Car Wrap Shop",
+                country_name="德国",
+                country_search_name="Germany",
+                region_name="柏林州",
+                region_search_name="Berlin",
+                city_name="柏林",
+                city_search_name="Berlin",
+                query_text="Car Wrap Shop in Berlin, Berlin, Germany",
+                search_url="https://www.google.com/maps/search/Car+Wrap+Shop+in+Berlin",
+            )
+        ],
+    )
+    task = window.task_repository.list_keyword_tasks(batch_id)[0]
+    window.task_repository.mark_task_failed(task["id"], "页面加载失败")
+    window.current_batch_id = batch_id
+
+    window.retry_failed_tasks()
+
+    tasks = window.task_repository.list_keyword_tasks(batch_id)
+    assert tasks[0]["status"] == "pending"
+    assert tasks[0]["failure_reason"] == ""
+
+    window.close()
+    application.quit()
+
+
+def test_task_config_page_reload_regions_when_country_changes():
+    """国家切换后，地区复选框应从新国家配置重新加载。"""
+    application, window = create_application()
+    locations_config = LocationsConfig(
+        countries=(
+            CountryConfig(
+                name="德国",
+                search_name="Germany",
+                regions=(
+                    RegionConfig(
+                        name="柏林州",
+                        search_name="Berlin",
+                        cities=(CityConfig(name="柏林", search_name="Berlin"),),
+                    ),
+                ),
+            ),
+            CountryConfig(
+                name="法国",
+                search_name="France",
+                regions=(
+                    RegionConfig(
+                        name="法兰西岛",
+                        search_name="Ile-de-France",
+                        cities=(CityConfig(name="巴黎", search_name="Paris"),),
+                    ),
+                ),
+            ),
+        )
+    )
+    page = TaskConfigPage(app_config=window.app_config, locations_config=locations_config)
+
+    page.country_combo.setCurrentText("法国")
+
+    assert set(page.region_checkboxes) == {"法兰西岛"}
+    assert page.selected_region_names() == {"法兰西岛"}
+
+    page.close()
     window.close()
     application.quit()

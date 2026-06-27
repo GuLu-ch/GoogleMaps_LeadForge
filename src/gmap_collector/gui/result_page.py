@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QTableWidget, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, LineEdit, PrimaryPushButton, PushButton
 
 from gmap_collector.gui.layout_utils import build_adaptive_page
@@ -79,3 +79,23 @@ class ResultPage(QWidget):
         self.detail_view.setReadOnly(True)
         self.detail_view.setMinimumHeight(160)
         content_root_layout.addWidget(self.detail_view)
+
+    def load_businesses(self, businesses: list[dict]) -> None:
+        """加载去重后的商家结果。"""
+        self.result_table.setRowCount(len(businesses))
+        for row_index, business in enumerate(businesses):
+            values = [
+                business["name"],
+                business["address"],
+                business["phone"],
+                business["website"],
+                business["rating"],
+                business["review_count"],
+                business["category"],
+                business["google_maps_url"],
+                business["source_keywords"],
+                business["first_seen_at"],
+                business["last_seen_at"],
+            ]
+            for column_index, value in enumerate(values):
+                self.result_table.setItem(row_index, column_index, QTableWidgetItem(str(value)))

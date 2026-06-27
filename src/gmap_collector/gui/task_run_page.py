@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QSizePolicy, QSplitter, QTableWidget, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QSizePolicy, QSplitter, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, PrimaryPushButton, PushButton
 
 from gmap_collector.gui.layout_utils import build_adaptive_page
@@ -9,7 +9,8 @@ from gmap_collector.gui.table_utils import apply_mixed_table_resize
 class TaskRunPage(QWidget):
     """任务执行页。
 
-    负责展示任务状态、关键词队列和运行日志。当前阶段按钮暂不连接真实爬取流程。
+    负责展示任务状态、关键词队列和运行日志。按钮动作由主窗口统一连接到任务仓储和
+    后台执行线程。
     """
 
     def __init__(self, parent: QWidget | None = None):
@@ -46,11 +47,14 @@ class TaskRunPage(QWidget):
         status_widget = QWidget()
         status_layout = QGridLayout()
         status_widget.setLayout(status_layout)
+        self.status_labels: dict[str, BodyLabel] = {}
         for index, label in enumerate(
             ["总关键词数", "已完成", "失败", "待执行", "已采集商家数", "去重后商家数", "连续失败次数", "当前关键词", "当前城市", "当前浏览器引擎"]
         ):
             status_layout.addWidget(BodyLabel(label), index, 0)
-            status_layout.addWidget(BodyLabel("-"), index, 1)
+            value_label = BodyLabel("-")
+            status_layout.addWidget(value_label, index, 1)
+            self.status_labels[label] = value_label
         status_widget.setMinimumWidth(260)
         middle_splitter.addWidget(status_widget)
 
@@ -80,3 +84,29 @@ class TaskRunPage(QWidget):
         self.log_view.setReadOnly(True)
         self.log_view.setMinimumHeight(180)
         content_root_layout.addWidget(self.log_view)
+
+    def load_tasks(self, batch: dict, tasks: list[dict]) -> None:
+        """加载批次统计和关键词任务表格。"""
+        pending_count = sum(1 for task in tasks if task["status"] == "pending")
+        self.status_labels["总关键词数"].setText(str(batch["total_keywords"]))
+        self.status_labels["已完成"].setText(str(batch["completed_keywords"]))
+        self.status_labels["失败"].setText(str(batch["failed_keywords"]))
+        self.status_labels["待执行"].setText(str(pending_count))
+
+        self.keyword_table.setRowCount(len(tasks))
+        for row_index, task in enumerate(tasks):
+            values = [
+                task["status"],
+                task["keyword"],
+                task["city_name"],
+                task["region_name"],
+                task["country_name"],
+                task["failure_reason"],
+                task["last_run_at"] or "",
+            ]
+            for column_index, value in enumerate(values):
+                self.keyword_table.setItem(row_index, column_index, QTableWidgetItem(str(value)))
+
+    def append_log(self, message: str) -> None:
+        """追加运行日志。"""
+        self.log_view.append(message)

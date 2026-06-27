@@ -14,8 +14,12 @@ class BusinessRepository:
     def __init__(self, database_path: str | Path):
         self.database_path = Path(database_path)
 
-    def upsert_business(self, record: BusinessRecord) -> int:
-        """写入或更新商家记录，并返回商家 ID。"""
+    def upsert_business(self, record: BusinessRecord, keyword_task_id: int | None = None, query_text: str = "") -> int:
+        """写入或更新商家记录，并返回商家 ID。
+
+        `keyword_task_id` 和 `query_text` 用于记录商家命中关系；调用方没有任务上下文时可以
+        只写主记录，保持导出和去重流程简单。
+        """
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
             existing = connection.execute(
@@ -44,8 +48,10 @@ class BusinessRepository:
                         record.source_keyword,
                     ),
                 )
+                business_id = int(cursor.lastrowid)
+                self._insert_task_hit(connection, business_id, keyword_task_id, query_text)
                 connection.commit()
-                return int(cursor.lastrowid)
+                return business_id
 
             merged_keywords = _merge_source_keywords(existing["source_keywords"], record.source_keyword)
             connection.execute(
@@ -74,6 +80,7 @@ class BusinessRepository:
                     existing["id"],
                 ),
             )
+            self._insert_task_hit(connection, int(existing["id"]), keyword_task_id, query_text)
             connection.commit()
             return int(existing["id"])
 
@@ -92,6 +99,28 @@ class BusinessRepository:
             ).fetchall()
 
         return [dict(row) for row in rows]
+
+    def _insert_task_hit(
+        self,
+        connection: sqlite3.Connection,
+        business_id: int,
+        keyword_task_id: int | None,
+        query_text: str,
+    ) -> None:
+        """写入商家和关键词任务的命中关系。
+
+        完整搜索词包含城市、地区和逗号，不适合混入 `source_keywords` 的逗号分隔字段，
+        因此单独写入命中关系表，便于后续追踪来源。
+        """
+        if not query_text:
+            return
+        connection.execute(
+            """
+            INSERT INTO business_task_hits (business_id, keyword_task_id, query_text)
+            VALUES (?, ?, ?)
+            """,
+            (business_id, keyword_task_id, query_text),
+        )
 
 
 def _merge_source_keywords(existing_keywords: str, new_keyword: str) -> str:

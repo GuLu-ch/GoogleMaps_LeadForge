@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS task_batches (
     total_keywords INTEGER NOT NULL DEFAULT 0,
     completed_keywords INTEGER NOT NULL DEFAULT 0,
     failed_keywords INTEGER NOT NULL DEFAULT 0,
+    runtime_config TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -71,4 +72,15 @@ def initialize_database(database_path: str | Path) -> None:
 
     with sqlite3.connect(path) as connection:
         connection.executescript(SCHEMA_SQL)
+        _ensure_column(connection, "task_batches", "runtime_config", "TEXT NOT NULL DEFAULT '{}'")
         connection.commit()
+
+
+def _ensure_column(connection: sqlite3.Connection, table_name: str, column_name: str, column_definition: str) -> None:
+    """确保旧版 SQLite 数据库也具备新增字段。"""
+    columns = {
+        row[1]
+        for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+    }
+    if column_name not in columns:
+        connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")

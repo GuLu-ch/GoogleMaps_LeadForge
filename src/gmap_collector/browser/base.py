@@ -32,6 +32,14 @@ class BrowserEngine(ABC):
     def open_url(self, url: str) -> None:
         """打开指定 URL。"""
 
+    def wait_for_results(self, timeout_seconds: int = 20) -> bool:
+        """等待搜索结果区域加载完成。
+
+        不是所有浏览器引擎都必须实现专门等待逻辑；默认返回 True，表示由
+        具体引擎或测试替身自行决定是否覆盖该行为。
+        """
+        return True
+
     @abstractmethod
     def get_snapshot(self) -> BrowserPageSnapshot:
         """返回当前页面 HTML 快照。"""

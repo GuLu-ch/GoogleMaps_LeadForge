@@ -56,7 +56,8 @@ GMap/
 │       │   ├── settings_page.py
 │       │   ├── table_utils.py
 │       │   ├── task_config_page.py
-│       │   └── task_run_page.py
+│       │   ├── task_run_page.py
+│       │   └── task_worker.py
 │       ├── tasks/
 │       │   ├── __init__.py
 │       │   └── keyword_builder.py
@@ -70,11 +71,13 @@ GMap/
 │       │   └── maps_list_parser.py
 │       ├── services/
 │       │   ├── __init__.py
-│       │   └── maps_crawler.py
+│       │   ├── maps_crawler.py
+│       │   └── task_runner.py
 │       ├── storage/
 │       │   ├── __init__.py
 │       │   ├── database.py
-│       │   └── repositories.py
+│       │   ├── repositories.py
+│       │   └── task_repository.py
 │       └── exporters/
 │           ├── __init__.py
 │           └── business_exporter.py
@@ -85,7 +88,12 @@ GMap/
         ├── test_exporter.py
         ├── test_gui_layout.py
         ├── test_keyword_builder.py
-        └── test_repositories.py
+        ├── test_maps_crawler_service.py
+        ├── test_maps_list_parser.py
+        ├── test_repositories.py
+        ├── test_selenium_engine.py
+        ├── test_task_repository.py
+        └── test_task_runner.py
 ```
 
 ## 根目录文件
@@ -151,6 +159,7 @@ SQLite 负责保存：
 - 关键词任务。
 - 商家记录。
 - 商家命中关系。
+- 任务运行参数快照。
 
 ## drivers/
 
@@ -229,6 +238,7 @@ GUI 模块。
 - `layout_utils.py`：页面级自适应布局工具，统一创建滚动内容区和固定操作栏。
 - `task_config_page.py`：任务配置页控件，负责地区、关键词、本次任务运行参数和任务预览表。
 - `task_run_page.py`：任务执行页控件，负责任务控制按钮、状态面板、关键词队列和运行日志。
+- `task_worker.py`：GUI 后台任务线程，负责在不阻塞主界面的情况下驱动 Selenium 执行当前批次。
 - `result_page.py`：结果管理页控件，负责筛选条件、商家结果表和详情区。
 - `settings_page.py`：设置与文档页控件，负责展示全局默认运行参数、项目路径和文档入口。
 - `table_utils.py`：表格列宽策略工具，统一处理默认列宽、手动拖拽、长列拉伸和滚动条策略。
@@ -243,11 +253,9 @@ GUI 模块。
 
 后续将扩展：
 
-- 批次创建。
-- 关键词队列。
-- 暂停继续。
-- 失败重试。
-- 连续失败暂停。
+- 街道级任务组合。
+- CSV/JSON 导入地区配置。
+- 更复杂的任务批次管理。
 
 ### browser/
 
@@ -275,7 +283,8 @@ GUI 模块。
 
 当前已实现：
 
-- `maps_crawler.py`：单个 Google Maps 搜索链接的采集服务，负责打开链接、滚动列表、解析结果并写入 SQLite。
+- `maps_crawler.py`：单个 Google Maps 搜索链接的采集服务，负责打开链接、等待结果 DOM、页面初始停留、滚动随机停留、解析结果、写入 SQLite 和记录命中关系。
+- `task_runner.py`：任务运行器，负责单线程顺序执行关键词任务、关键词间随机停留、暂停、停止和连续失败自动暂停。
 
 ### storage/
 
@@ -283,8 +292,9 @@ GUI 模块。
 
 当前已实现：
 
-- `database.py`：SQLite 表结构初始化。
+- `database.py`：SQLite 表结构初始化，并兼容旧数据库自动追加新增字段。
 - `repositories.py`：商家记录 upsert、Google Maps 链接去重、来源关键词合并。
+- `task_repository.py`：任务批次和关键词任务仓储，支持运行参数快照、状态流转、失败重试和最近可恢复批次查询。
 
 ### exporters/
 
@@ -313,3 +323,5 @@ GUI 模块。
 - Google Maps 列表页解析。
 - Selenium 等待条件语言无关约束。
 - Google Maps 单链接采集服务。
+- 任务批次仓储、运行参数快照、失败重试和最近可恢复批次查询。
+- 任务运行器的顺序执行、关键词间停留、暂停和连续失败暂停。
