@@ -65,6 +65,7 @@ class TaskWorker(QThread):
         )
 
         def crawl_one(task: dict):
+            self.task_changed.emit()
             self.log_message.emit(f"开始采集：{task['query_text']}")
             result = crawl_maps_search(
                 engine=self.engine,

@@ -26,6 +26,10 @@ GMap/
 │   └── .gitkeep
 ├── logs/
 │   └── .gitkeep
+├── scripts/
+│   ├── __init__.py
+│   ├── cleanup_runtime_data.py
+│   └── open_login_browser.py
 ├── docs/
 │   ├── REQUIREMENTS.md
 │   ├── DESIGN.md
@@ -90,6 +94,8 @@ GMap/
         ├── test_keyword_builder.py
         ├── test_maps_crawler_service.py
         ├── test_maps_list_parser.py
+        ├── test_cleanup_runtime_data.py
+        ├── test_open_login_browser.py
         ├── test_repositories.py
         ├── test_selenium_engine.py
         ├── test_task_repository.py
@@ -175,6 +181,13 @@ SQLite 负责保存：
 ## logs/
 
 日志目录，保存运行日志、错误日志和调试日志。
+
+## scripts/
+
+项目辅助脚本目录。
+
+- `cleanup_runtime_data.py`：清理本地运行数据库、日志、导出、调试输出和截图；保留关键词输入、配置文件和浏览器登录缓存。
+- `open_login_browser.py`：使用采集任务相同的 Selenium 浏览器用户目录打开 Google 登录页，便于后续采集复用登录状态。
 
 ## docs/
 
@@ -320,8 +333,11 @@ GUI 模块。
 - Excel 导出。
 - GUI 设置页基础控件。
 - GUI 表格列宽策略。
+- GUI 任务执行页状态反馈。
 - Google Maps 列表页解析。
 - Selenium 等待条件语言无关约束。
 - Google Maps 单链接采集服务。
 - 任务批次仓储、运行参数快照、失败重试和最近可恢复批次查询。
 - 任务运行器的顺序执行、关键词间停留、暂停和连续失败暂停。
+- 本地运行产物清理脚本。
+- 登录浏览器脚本缓存目录。

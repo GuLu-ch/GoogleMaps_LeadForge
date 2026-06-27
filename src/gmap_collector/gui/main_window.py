@@ -105,7 +105,13 @@ class MainWindow(FluentWindow):
             return
         batch = self.task_repository.get_batch(self.current_batch_id)
         tasks = self.task_repository.list_keyword_tasks(self.current_batch_id)
-        self.task_run_page.load_tasks(batch, tasks)
+        self.task_run_page.load_tasks(
+            batch=batch,
+            tasks=tasks,
+            runtime_config=self._current_runtime_config(),
+            business_stats=self.business_repository.get_business_stats(),
+            consecutive_failures=self._consecutive_failure_count(tasks),
+        )
 
     def refresh_results(self) -> None:
         """刷新结果管理页。"""
@@ -124,6 +130,13 @@ class MainWindow(FluentWindow):
         if str(runtime_config["engine_name"]).lower() != "selenium":
             self.task_run_page.append_log("当前版本只支持 Selenium 执行采集；Playwright 引擎保留为后续扩展。")
             return
+
+        next_task = self.task_repository.get_next_pending_task(self.current_batch_id)
+        self.task_run_page.show_starting_state(
+            runtime_config=runtime_config,
+            task=next_task,
+            business_stats=self.business_repository.get_business_stats(),
+        )
 
         self.task_worker = TaskWorker(
             batch_id=self.current_batch_id,
@@ -251,3 +264,16 @@ class MainWindow(FluentWindow):
             "page_load_timeout_seconds": self.app_config.crawler.page_load_timeout_seconds,
             "failure_threshold": self.app_config.crawler.consecutive_failure_pause_threshold,
         }
+
+    def _consecutive_failure_count(self, tasks: list[dict]) -> int:
+        """根据当前关键词队列估算连续失败次数。"""
+        count = 0
+        for task in tasks:
+            status = task.get("status")
+            if status == "success":
+                count = 0
+            elif status == "failed":
+                count += 1
+            elif status in {"pending", "running"}:
+                break
+        return count

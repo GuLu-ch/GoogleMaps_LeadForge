@@ -3,6 +3,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QScrollArea
 
+import gmap_collector.gui.main_window as main_window_module
 from gmap_collector.app import create_application
 from gmap_collector.config.schemas import CityConfig, CountryConfig, LocationsConfig, RegionConfig
 from gmap_collector.gui.task_config_page import TaskConfigPage
@@ -154,6 +155,155 @@ def test_main_window_retries_failed_tasks_from_task_run_page():
     tasks = window.task_repository.list_keyword_tasks(batch_id)
     assert tasks[0]["status"] == "pending"
     assert tasks[0]["failure_reason"] == ""
+
+    window.close()
+    application.quit()
+
+
+def test_task_run_page_shows_runtime_context_and_current_task():
+    """任务执行页应展示运行状态、当前关键词、国家地区和浏览器引擎。"""
+    application, window = create_application()
+    batch = {
+        "status": "running",
+        "total_keywords": 1,
+        "completed_keywords": 0,
+        "failed_keywords": 0,
+    }
+    tasks = [
+        {
+            "status": "running",
+            "keyword": "Car Wrap Shop",
+            "city_name": "柏林",
+            "region_name": "柏林州",
+            "country_name": "德国",
+            "failure_reason": "",
+            "last_run_at": "",
+        }
+    ]
+
+    window.task_run_page.load_tasks(
+        batch=batch,
+        tasks=tasks,
+        runtime_config={"engine_name": "selenium", "browser_name": "chrome"},
+        business_stats={"raw_hits": 3, "deduped_businesses": 2},
+        consecutive_failures=1,
+    )
+
+    labels = window.task_run_page.status_labels
+    assert labels["运行状态"].text() == "运行中"
+    assert labels["当前浏览器引擎"].text() == "Selenium / Chrome"
+    assert labels["当前关键词"].text() == "Car Wrap Shop"
+    assert labels["当前国家"].text() == "德国"
+    assert labels["当前地区"].text() == "柏林州"
+    assert labels["当前城市"].text() == "柏林"
+    assert labels["已采集商家数"].text() == "3"
+    assert labels["去重后商家数"].text() == "2"
+    assert labels["连续失败次数"].text() == "1"
+
+    window.close()
+    application.quit()
+
+
+def test_task_run_page_shows_starting_state_before_browser_ready():
+    """点击开始后，即使浏览器还在启动，也应立即展示启动状态和下一条任务信息。"""
+    application, window = create_application()
+
+    window.task_run_page.show_starting_state(
+        runtime_config={"engine_name": "selenium", "browser_name": "chrome"},
+        task={
+            "keyword": "PPF",
+            "city_name": "慕尼黑",
+            "region_name": "巴伐利亚州",
+            "country_name": "德国",
+        },
+        business_stats={"raw_hits": 0, "deduped_businesses": 0},
+    )
+
+    labels = window.task_run_page.status_labels
+    assert labels["运行状态"].text() == "启动中"
+    assert labels["当前浏览器引擎"].text() == "Selenium / Chrome"
+    assert labels["当前关键词"].text() == "PPF"
+    assert labels["当前国家"].text() == "德国"
+    assert labels["当前地区"].text() == "巴伐利亚州"
+    assert labels["当前城市"].text() == "慕尼黑"
+
+    window.close()
+    application.quit()
+
+
+def test_main_window_shows_starting_state_when_start_clicked(monkeypatch):
+    """点击开始后，主窗口应在浏览器真正打开前立即刷新启动状态。"""
+
+    class FakeSignal:
+        """测试用信号对象，只记录连接函数。"""
+
+        def __init__(self):
+            self.connected = []
+
+        def connect(self, callback):
+            self.connected.append(callback)
+
+    class FakeTaskWorker:
+        """避免测试中真的启动浏览器的任务线程替身。"""
+
+        def __init__(self, *args, **kwargs):
+            self.log_message = FakeSignal()
+            self.task_changed = FakeSignal()
+            self.finished_summary = FakeSignal()
+            self.started = False
+
+        def isRunning(self):
+            return False
+
+        def start(self):
+            self.started = True
+
+    monkeypatch.setattr(main_window_module, "TaskWorker", FakeTaskWorker)
+    application, window = create_application()
+    batch_id = window.task_repository.create_batch(
+        "启动状态测试",
+        runtime_config={
+            "browser_name": "chrome",
+            "engine_name": "selenium",
+            "page_initial_wait_seconds": 0,
+            "keyword_wait_seconds_min": 0,
+            "keyword_wait_seconds_max": 0,
+            "scroll_wait_seconds_min": 0,
+            "scroll_wait_seconds_max": 0,
+            "max_scroll_rounds": 1,
+            "no_new_results_threshold": 1,
+            "page_load_timeout_seconds": 30,
+            "failure_threshold": 3,
+        },
+    )
+    window.task_repository.add_keyword_tasks(
+        batch_id,
+        [
+            KeywordTaskCreate(
+                keyword="Car Wrap Shop",
+                country_name="德国",
+                country_search_name="Germany",
+                region_name="柏林州",
+                region_search_name="Berlin",
+                city_name="柏林",
+                city_search_name="Berlin",
+                query_text="Car Wrap Shop in Berlin, Berlin, Germany",
+                search_url="https://www.google.com/maps/search/Car+Wrap+Shop+in+Berlin",
+            )
+        ],
+    )
+    window.current_batch_id = batch_id
+
+    window.start_current_batch()
+
+    labels = window.task_run_page.status_labels
+    assert labels["运行状态"].text() == "启动中"
+    assert labels["当前浏览器引擎"].text() == "Selenium / Chrome"
+    assert labels["当前关键词"].text() == "Car Wrap Shop"
+    assert labels["当前国家"].text() == "德国"
+    assert labels["当前地区"].text() == "柏林州"
+    assert labels["当前城市"].text() == "柏林"
+    assert window.task_worker.started is True
 
     window.close()
     application.quit()

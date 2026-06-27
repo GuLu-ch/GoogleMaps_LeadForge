@@ -301,9 +301,11 @@ GUI 组件库使用 `PySide6-Fluent-Widgets`。页面应采用工具型桌面软
 主要区域：
 
 - 控制按钮。
-- 状态统计。
+- 状态统计，包含运行状态、当前关键词、国家、地区、城市、浏览器引擎、原始命中数量和去重商家数量。
 - 关键词队列表格。
 - 运行日志。
+
+点击开始后，主窗口会在后台浏览器真正启动前调用任务执行页的启动状态刷新方法，立即展示“启动中”和下一条待执行关键词信息。后台任务线程在每个关键词刚进入运行状态时再次发出刷新信号，确保状态面板和关键词队列表同步更新。
 
 ### 结果管理
 
@@ -335,6 +337,10 @@ GUI 组件库使用 `PySide6-Fluent-Widgets`。页面应采用工具型桌面软
 业务代码只依赖统一接口，不直接依赖 Selenium 或 Playwright。
 
 当前第一版只有 Selenium 具备真实执行能力。Playwright 引擎保留接口和配置入口，但尚未实现 Google Maps 列表滚动与 DOM 采集；GUI 在选择 Playwright 启动任务时会提示暂不支持。
+
+`scripts.open_login_browser` 使用 `drivers/selenium-cache/<browser>` 作为浏览器用户数据目录打开 Google 登录页。该目录与正式 Selenium 采集任务一致，因此登录状态可被后续采集复用。
+
+`scripts.cleanup_runtime_data` 只清理本地运行数据库、日志、导出、调试输出和截图，不清理关键词输入、配置文件和 `drivers/selenium-cache/` 浏览器登录缓存。
 
 ## 九、异常处理设计
 

@@ -290,7 +290,23 @@
 
 当前 GUI 已支持从任务预览创建 SQLite 批次、进入任务执行页、启动/暂停/继续/停止当前批次、重试失败关键词、刷新结果和导出 CSV/Excel。
 
+任务执行页会展示当前运行状态、当前关键词、国家、地区、城市、浏览器引擎、原始命中数量和去重商家数量。点击开始后，界面会先显示“启动中”，避免浏览器启动期间没有反馈。
+
 当前第一版实际执行采集时只落地 Selenium。Playwright 作为后续扩展入口保留在配置和界面中；如果当前版本选择 Playwright 启动任务，软件会提示暂不支持，不会静默改用其他引擎。
+
+如果需要先登录 Google 账户，可以使用和采集任务相同的 Selenium Chrome 用户目录打开登录浏览器：
+
+```powershell
+& 'D:\WorkSpace\Python\GMap\.conda\gmap\python.exe' -m scripts.open_login_browser --browser chrome
+```
+
+清理本地运行产物可以执行：
+
+```powershell
+& 'D:\WorkSpace\Python\GMap\.conda\gmap\python.exe' -m scripts.cleanup_runtime_data
+```
+
+清理脚本会删除 `data/app.sqlite3`、日志、导出、调试输出和截图等运行产物，但不会删除 `keyword.txt`、配置文件或 `drivers/selenium-cache/` 浏览器登录缓存。
 
 等待 Google Maps 页面加载时不能依赖中文、英文或其他语言的可见文案，只能使用结构化 DOM 条件，例如 `div[role="feed"]`、`a[href*="/maps/place/"]` 或 `data-result-index`。
 

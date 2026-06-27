@@ -100,6 +100,17 @@ class BusinessRepository:
 
         return [dict(row) for row in rows]
 
+    def get_business_stats(self) -> dict[str, int]:
+        """返回任务执行页需要展示的商家统计。"""
+        with sqlite3.connect(self.database_path) as connection:
+            deduped_businesses = connection.execute("SELECT COUNT(*) FROM businesses").fetchone()[0]
+            raw_hits = connection.execute("SELECT COUNT(*) FROM business_task_hits").fetchone()[0]
+
+        return {
+            "raw_hits": int(raw_hits or 0),
+            "deduped_businesses": int(deduped_businesses or 0),
+        }
+
     def _insert_task_hit(
         self,
         connection: sqlite3.Connection,

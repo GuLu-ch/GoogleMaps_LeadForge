@@ -46,3 +46,29 @@ def test_upsert_business_deduplicates_by_google_maps_url_and_merges_keywords(tmp
         count = connection.execute("SELECT COUNT(*) FROM businesses").fetchone()[0]
 
     assert count == 1
+
+
+def test_business_repository_returns_raw_hit_and_deduped_counts(tmp_path):
+    """商家仓储应能返回原始命中数和去重商家数，供任务执行页展示。"""
+    database_path = tmp_path / "app.sqlite3"
+    initialize_database(database_path)
+    repository = BusinessRepository(database_path)
+    record = BusinessRecord(
+        name="Example Wrap",
+        address="Street 1",
+        phone="+49 111",
+        website="https://example.com",
+        rating="4.8",
+        review_count="120",
+        category="Car wrap shop",
+        google_maps_url="https://maps.google.com/?cid=1",
+        source_keyword="Car Wrap Shop",
+    )
+
+    repository.upsert_business(record, keyword_task_id=1, query_text="Car Wrap Shop in Berlin")
+    repository.upsert_business(record, keyword_task_id=2, query_text="PPF in Berlin")
+
+    assert repository.get_business_stats() == {
+        "raw_hits": 2,
+        "deduped_businesses": 1,
+    }
