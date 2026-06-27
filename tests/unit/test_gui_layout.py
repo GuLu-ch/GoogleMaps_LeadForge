@@ -22,6 +22,43 @@ def test_settings_page_exposes_global_runtime_controls():
     assert Path(settings_page.export_dir_input.text()).name == "exports"
     assert settings_page.max_scroll_rounds_spin.value() == 30
     assert settings_page.save_settings_button.text() == "保存全局设置"
+    assert settings_page.clear_runtime_data_button.text() == "清空数据库和缓存"
+
+    window.close()
+    application.quit()
+
+
+def test_settings_page_clear_runtime_data_button_triggers_main_window_cleanup(monkeypatch):
+    """设置页清理按钮应调用主窗口的运行数据清理流程。"""
+    application, window = create_application()
+    called = {"cleanup": False}
+
+    def fake_cleanup():
+        called["cleanup"] = True
+
+    monkeypatch.setattr(window, "clear_runtime_data_from_settings", fake_cleanup)
+    window.settings_page.clear_runtime_data_button.clicked.emit()
+
+    assert called["cleanup"] is True
+
+    window.close()
+    application.quit()
+
+
+def test_main_window_clear_runtime_data_reinitializes_database(monkeypatch):
+    """确认清理后，主窗口应删除运行数据并重新初始化空数据库。"""
+    application, window = create_application()
+    batch_id = window.task_repository.create_batch("清理测试批次")
+    window.current_batch_id = batch_id
+    assert window.task_repository.get_batch(batch_id)["id"] == batch_id
+
+    monkeypatch.setattr(window, "_confirm_clear_runtime_data", lambda: True)
+
+    window.clear_runtime_data_from_settings()
+
+    assert window.current_batch_id is None
+    assert window.task_repository.get_latest_resumable_batch_id() is None
+    assert window.business_repository.get_business_stats() == {"raw_hits": 0, "deduped_businesses": 0}
 
     window.close()
     application.quit()

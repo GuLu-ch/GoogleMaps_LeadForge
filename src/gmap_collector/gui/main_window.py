@@ -1,7 +1,8 @@
 from datetime import datetime
 
+from PySide6.QtWidgets import QDialog
 from PySide6.QtCore import QSize
-from qfluentwidgets import FluentIcon, FluentWindow
+from qfluentwidgets import FluentIcon, FluentWindow, MessageBox
 
 from gmap_collector.common.paths import get_project_root, resolve_project_path
 from gmap_collector.config.loader import load_app_config, load_locations_config
@@ -14,6 +15,7 @@ from gmap_collector.gui.task_worker import TaskWorker
 from gmap_collector.storage.database import initialize_database
 from gmap_collector.storage.repositories import BusinessRepository
 from gmap_collector.storage.task_repository import KeywordTaskCreate, TaskRepository
+from scripts.cleanup_runtime_data import cleanup_runtime_data
 
 
 class MainWindow(FluentWindow):
@@ -67,6 +69,7 @@ class MainWindow(FluentWindow):
         self.task_run_page.export_button.clicked.connect(self.export_results_to_csv)
         self.result_page.export_csv_button.clicked.connect(self.export_results_to_csv)
         self.result_page.export_excel_button.clicked.connect(self.export_results_to_excel)
+        self.settings_page.clear_runtime_data_button.clicked.connect(self.clear_runtime_data_from_settings)
 
     def create_task_batch_from_preview(self) -> None:
         """从任务配置页预览创建任务批次。"""
@@ -208,6 +211,61 @@ class MainWindow(FluentWindow):
         export_businesses_to_excel(self.database_path, output_path)
         self.task_run_page.append_log(f"已导出 Excel：{output_path}")
         self.result_page.detail_view.setText(f"已导出 Excel：{output_path}")
+
+    def clear_runtime_data_from_settings(self) -> None:
+        """从设置页清空本地运行数据和浏览器缓存。
+
+        这是危险操作，会删除 SQLite 数据库、日志、导出、调试输出和浏览器用户缓存。
+        因此执行前必须弹出二次确认，避免误删当前采集结果或 Google 登录状态。
+        """
+        if self.task_worker is not None and self.task_worker.isRunning():
+            self.task_run_page.append_log("任务正在运行，不能清空数据库和缓存。")
+            return
+        if not self._confirm_clear_runtime_data():
+            self.task_run_page.append_log("已取消清空数据库和缓存。")
+            return
+
+        project_root = get_project_root()
+        removed_paths = cleanup_runtime_data(
+            project_root,
+            include_browser_cache=True,
+            reset_locked_database=True,
+        )
+        initialize_database(self.database_path)
+        self.task_repository = TaskRepository(self.database_path)
+        self.business_repository = BusinessRepository(self.database_path)
+        self.current_batch_id = None
+        self.task_run_page.load_tasks(
+            batch={
+                "status": "pending",
+                "total_keywords": 0,
+                "completed_keywords": 0,
+                "failed_keywords": 0,
+            },
+            tasks=[],
+            runtime_config=self._default_runtime_config(),
+            business_stats=self.business_repository.get_business_stats(),
+            consecutive_failures=0,
+        )
+        self.refresh_results()
+        if removed_paths:
+            removed_text = "、".join(str(path) for path in removed_paths)
+            self.task_run_page.append_log(f"已清空运行数据和缓存：{removed_text}")
+            self.result_page.detail_view.setText(f"已清空运行数据和缓存：{removed_text}")
+        else:
+            self.task_run_page.append_log("没有需要清空的运行数据或缓存。")
+            self.result_page.detail_view.setText("没有需要清空的运行数据或缓存。")
+
+    def _confirm_clear_runtime_data(self) -> bool:
+        """弹出清理确认框，确认后才允许删除本地运行数据。"""
+        message_box = MessageBox(
+            "确认清空数据库和缓存",
+            "此操作会删除 SQLite 数据库、日志、导出文件、调试输出和浏览器登录缓存。配置文件、源码和关键词文件不会被删除。是否继续？",
+            self,
+        )
+        message_box.yesButton.setText("确认清空")
+        message_box.cancelButton.setText("取消")
+        return message_box.exec() == QDialog.Accepted
 
     def _export_path(self, extension: str):
         """生成导出文件路径。"""

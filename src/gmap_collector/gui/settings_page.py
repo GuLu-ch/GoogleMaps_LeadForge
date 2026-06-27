@@ -128,12 +128,14 @@ class SettingsPage(QWidget):
         self.open_config_button = PushButton("打开配置目录")
         self.open_export_button = PushButton("打开导出目录")
         self.open_log_button = PushButton("打开日志目录")
+        self.clear_runtime_data_button = PushButton("清空数据库和缓存")
         for button in [
             self.save_settings_button,
             self.restore_default_button,
             self.open_config_button,
             self.open_export_button,
             self.open_log_button,
+            self.clear_runtime_data_button,
         ]:
             action_layout.addWidget(button)
         action_layout.addStretch(1)

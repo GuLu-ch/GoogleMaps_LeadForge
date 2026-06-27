@@ -40,3 +40,15 @@ def test_cleanup_runtime_data_removes_runtime_outputs_and_keeps_inputs(tmp_path)
     assert not (tmp_path / "outputs").exists()
     assert Path("data/app.sqlite3") in removed_paths
     assert Path("outputs") in removed_paths
+
+
+def test_cleanup_runtime_data_can_remove_browser_cache_when_requested(tmp_path):
+    """需要全新测试环境时，清理函数应可选删除浏览器用户缓存。"""
+    browser_cache_dir = tmp_path / "drivers" / "selenium-cache" / "chrome"
+    browser_cache_dir.mkdir(parents=True)
+    (browser_cache_dir / "Cookies").write_text("登录缓存", encoding="utf-8")
+
+    removed_paths = cleanup_runtime_data(project_root=tmp_path, include_browser_cache=True)
+
+    assert not (tmp_path / "drivers" / "selenium-cache").exists()
+    assert Path("drivers/selenium-cache") in removed_paths

@@ -61,6 +61,10 @@
 - 新增 `scripts.open_login_browser`，用于打开与采集任务共用用户目录的 Google 登录浏览器。
 - 新增 `scripts.cleanup_runtime_data`，用于清理本地运行数据库、日志、导出和调试输出，同时保留关键词输入和浏览器登录缓存。
 - 调整 `scripts.open_login_browser`，登录阶段不再通过 Selenium WebDriver 启动浏览器，改为直接启动系统真实 Chrome/Edge 进程；Chrome 默认优先使用 `chrome_proxy.exe`，并继续把用户数据目录固定到 `drivers/selenium-cache/<browser>`。
+- 新增设置页 `清空数据库和缓存` 按钮，二次确认后可清理 SQLite 数据库、日志、导出、调试输出、截图和浏览器用户缓存。
+- `scripts.cleanup_runtime_data` 新增可选清理浏览器缓存能力，并为 GUI 清理场景增加 SQLite 文件占用时的表数据清空兜底。
+- 调整项目开发流程：功能实现和自测后先交由用户验收，用户确认后再补齐文档并提交 Git。
+- 新增单元测试，覆盖可选清理浏览器缓存、设置页清理按钮连接、清理后数据库重新初始化流程。
 
 ### 说明
 

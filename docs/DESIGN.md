@@ -321,6 +321,8 @@ GUI 组件库使用 `PySide6-Fluent-Widgets`。页面应采用工具型桌面软
 
 该页面用于查看配置路径、数据路径、日志路径和文档入口。
 
+该页面还提供 `清空数据库和缓存` 维护按钮。该按钮属于危险操作，执行前必须弹出二次确认。用户确认后，主窗口调用运行产物清理服务，清理 SQLite 数据库、日志、导出文件、调试输出、截图和 `drivers/selenium-cache/` 浏览器用户缓存；配置文件、源码和关键词文件不被删除。清理完成后，主窗口会重新初始化 SQLite 表结构，清空当前批次状态，并刷新任务执行页和结果管理页。
+
 ## 八、浏览器引擎接口设计
 
 浏览器引擎应提供统一能力：
@@ -340,7 +342,7 @@ GUI 组件库使用 `PySide6-Fluent-Widgets`。页面应采用工具型桌面软
 
 `scripts.open_login_browser` 不通过 Selenium WebDriver 打开登录页，而是直接启动系统安装的真实浏览器进程。Chrome 默认优先使用安装目录中的 `chrome_proxy.exe`，并通过 `--user-data-dir=drivers/selenium-cache/<browser>` 把登录缓存写入项目目录。该目录与正式 Selenium 采集任务一致，因此登录状态可被后续采集复用，同时降低 Google 登录阶段出现 `This browser or app may not be secure` 的概率。
 
-`scripts.cleanup_runtime_data` 只清理本地运行数据库、日志、导出、调试输出和截图，不清理关键词输入、配置文件和 `drivers/selenium-cache/` 浏览器登录缓存。
+`scripts.cleanup_runtime_data` 默认只清理本地运行数据库、日志、导出、调试输出和截图，不清理关键词输入、配置文件和 `drivers/selenium-cache/` 浏览器登录缓存。传入 `--include-browser-cache` 或由 GUI 设置页清理按钮调用时，会同步删除 `drivers/selenium-cache/`。Windows 下如果 SQLite 文件被当前 GUI 进程占用，GUI 清理流程会清空业务表并重置自增序列作为兜底，确保软件回到空数据状态。
 
 ## 九、异常处理设计
 
