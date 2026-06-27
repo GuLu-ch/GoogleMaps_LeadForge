@@ -277,6 +277,18 @@
 - `config/locations.de.json`：德国地区和城市配置。
 - `config/app_config.json`：浏览器、引擎、停留时间、滚动策略、失败策略、导出路径等运行配置。
 
+## 采集核心逻辑
+
+当前核心采集能力已拆成三个层次：
+
+- 浏览器层：`SeleniumBrowserEngine` 负责启动可视化 Chrome/Edge、打开搜索链接、等待语言无关的结果 DOM、滚动列表并获取运行时 HTML。
+- 解析层：`parse_maps_list_results()` 负责从 Google Maps 搜索结果列表 DOM 中提取商家字段，字段不存在时保留空字符串。
+- 服务层：`crawl_maps_search()` 负责执行单个搜索链接的“打开、滚动、解析、写入 SQLite”闭环。
+
+等待 Google Maps 页面加载时不能依赖中文、英文或其他语言的可见文案，只能使用结构化 DOM 条件，例如 `div[role="feed"]`、`a[href*="/maps/place/"]` 或 `data-result-index`。
+
+根目录下的 `keywords`、`keyword.txt`、`outputs/`、截图、HTML、CSV、数据库、缓存和临时诊断文件都属于本地运行产物，必须保持在 `.gitignore` 中，不进入 Git。
+
 ## 合规和边界
 
 本软件只用于用户自行确认合规场景下的数据采集和自动化辅助。软件不得实现自动绕过验证码、登录限制、访问限制或其他风控机制的功能。遇到验证码、异常页面或疑似风控页面时，应暂停任务并等待人工处理。

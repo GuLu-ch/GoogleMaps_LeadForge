@@ -68,6 +68,9 @@ GMap/
 │       ├── parsers/
 │       │   ├── __init__.py
 │       │   └── maps_list_parser.py
+│       ├── services/
+│       │   ├── __init__.py
+│       │   └── maps_crawler.py
 │       ├── storage/
 │       │   ├── __init__.py
 │       │   ├── database.py
@@ -129,7 +132,7 @@ Anaconda 环境配置，环境名称固定为 `gmap`。
 
 ### .gitignore
 
-忽略本地环境、缓存、数据库、日志、导出文件和浏览器缓存。
+忽略本地环境、缓存、数据库、日志、导出文件、浏览器缓存、本地关键词文件、调试输出和临时诊断脚本。
 
 ## config/
 
@@ -253,10 +256,10 @@ GUI 模块。
 当前已实现：
 
 - `base.py`：浏览器引擎统一接口。
-- `selenium_engine.py`：Selenium 引擎骨架。
+- `selenium_engine.py`：Selenium 引擎，支持可视化 Chrome/Edge、运行时 DOM 快照、语言无关结果等待和列表滚动。
 - `playwright_engine.py`：Playwright 引擎骨架。
 
-说明：Google Maps DOM 定位尚未实现，需要后续和用户一起调试确认。
+说明：Selenium 是第一版优先落地引擎；Playwright 保留为后续可插拔扩展。
 
 ### parsers/
 
@@ -264,7 +267,15 @@ GUI 模块。
 
 当前已实现：
 
-- `maps_list_parser.py`：空输入安全返回，不写死未确认 DOM 选择器。
+- `maps_list_parser.py`：解析 Google Maps 列表页商家卡片，提取名称、地址、电话、官网、评分、评论数量、分类和 Google Maps 链接；缺失字段保留空字符串。
+
+### services/
+
+服务模块。
+
+当前已实现：
+
+- `maps_crawler.py`：单个 Google Maps 搜索链接的采集服务，负责打开链接、滚动列表、解析结果并写入 SQLite。
 
 ### storage/
 
@@ -299,3 +310,6 @@ GUI 模块。
 - Excel 导出。
 - GUI 设置页基础控件。
 - GUI 表格列宽策略。
+- Google Maps 列表页解析。
+- Selenium 等待条件语言无关约束。
+- Google Maps 单链接采集服务。

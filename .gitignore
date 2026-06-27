@@ -1,9 +1,39 @@
 .conda/
 .vscode/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 __pycache__/
 *.py[cod]
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# 本地关键词和临时输入文件，只用于个人采集测试，不提交。
+keywords
+keyword.txt
+keywords.*
+
+# 本地运行、诊断和临时输出，不提交。
+outputs/
+output/
+debug/
+tmp/
+temp/
+screenshots/
+*.tmp
+*.bak
+*.dump
+*.log
+
+# 临时诊断脚本不进入仓库；正式功能应沉淀到 src/ 包内。
+scripts/smoke_*.py
+scripts/diagnose_*.py
+
 data/*.sqlite3
+data/*.sqlite3-*
 exports/*
 !exports/.gitkeep
 logs/*
