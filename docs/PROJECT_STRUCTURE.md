@@ -169,9 +169,9 @@ SQLite 负责保存：
 
 ## drivers/
 
-浏览器驱动和自动化工具缓存目录。
+浏览器用户数据和自动化工具缓存目录。
 
-- `selenium-cache/`：Selenium Manager 或浏览器驱动相关缓存目录。
+- `selenium-cache/`：Chrome/Edge 的项目内用户数据目录，用于保存登录态、Cookie、Profile 等浏览器状态；登录脚本和正式采集任务会复用该目录。
 - `playwright-browsers/`：Playwright 浏览器缓存目录。
 
 ## exports/
@@ -187,7 +187,7 @@ SQLite 负责保存：
 项目辅助脚本目录。
 
 - `cleanup_runtime_data.py`：清理本地运行数据库、日志、导出、调试输出和截图；保留关键词输入、配置文件和浏览器登录缓存。
-- `open_login_browser.py`：使用采集任务相同的 Selenium 浏览器用户目录打开 Google 登录页，便于后续采集复用登录状态。
+- `open_login_browser.py`：直接启动系统真实 Chrome/Edge 进程打开 Google 登录页，并使用采集任务相同的项目内浏览器用户目录，便于后续采集复用登录状态；Chrome 默认优先使用 `chrome_proxy.exe`。
 
 ## docs/
 
@@ -340,4 +340,4 @@ GUI 模块。
 - 任务批次仓储、运行参数快照、失败重试和最近可恢复批次查询。
 - 任务运行器的顺序执行、关键词间停留、暂停和连续失败暂停。
 - 本地运行产物清理脚本。
-- 登录浏览器脚本缓存目录。
+- 登录浏览器脚本真实浏览器启动方式和项目内用户数据目录。

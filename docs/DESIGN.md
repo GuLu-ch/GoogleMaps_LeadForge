@@ -338,7 +338,7 @@ GUI 组件库使用 `PySide6-Fluent-Widgets`。页面应采用工具型桌面软
 
 当前第一版只有 Selenium 具备真实执行能力。Playwright 引擎保留接口和配置入口，但尚未实现 Google Maps 列表滚动与 DOM 采集；GUI 在选择 Playwright 启动任务时会提示暂不支持。
 
-`scripts.open_login_browser` 使用 `drivers/selenium-cache/<browser>` 作为浏览器用户数据目录打开 Google 登录页。该目录与正式 Selenium 采集任务一致，因此登录状态可被后续采集复用。
+`scripts.open_login_browser` 不通过 Selenium WebDriver 打开登录页，而是直接启动系统安装的真实浏览器进程。Chrome 默认优先使用安装目录中的 `chrome_proxy.exe`，并通过 `--user-data-dir=drivers/selenium-cache/<browser>` 把登录缓存写入项目目录。该目录与正式 Selenium 采集任务一致，因此登录状态可被后续采集复用，同时降低 Google 登录阶段出现 `This browser or app may not be secure` 的概率。
 
 `scripts.cleanup_runtime_data` 只清理本地运行数据库、日志、导出、调试输出和截图，不清理关键词输入、配置文件和 `drivers/selenium-cache/` 浏览器登录缓存。
 
@@ -406,6 +406,6 @@ drivers/
 
 说明：
 
-- `drivers/selenium-cache/` 用于保存 Selenium Manager 或浏览器驱动相关缓存。
+- `drivers/selenium-cache/` 用于保存 Chrome/Edge 的项目内用户数据目录，主要包括登录态、Cookie、Profile 等可复用浏览器状态。
 - `drivers/playwright-browsers/` 用于保存 Playwright 浏览器缓存。
 - 这些目录放在项目内，便于后续整体迁移和打包。

@@ -60,6 +60,7 @@
 - 优化任务执行页状态反馈，展示启动中、运行状态、当前关键词、国家、地区、城市、浏览器引擎和商家统计。
 - 新增 `scripts.open_login_browser`，用于打开与采集任务共用用户目录的 Google 登录浏览器。
 - 新增 `scripts.cleanup_runtime_data`，用于清理本地运行数据库、日志、导出和调试输出，同时保留关键词输入和浏览器登录缓存。
+- 调整 `scripts.open_login_browser`，登录阶段不再通过 Selenium WebDriver 启动浏览器，改为直接启动系统真实 Chrome/Edge 进程；Chrome 默认优先使用 `chrome_proxy.exe`，并继续把用户数据目录固定到 `drivers/selenium-cache/<browser>`。
 
 ### 说明
 

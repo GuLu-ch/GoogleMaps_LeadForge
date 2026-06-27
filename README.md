@@ -294,10 +294,28 @@
 
 当前第一版实际执行采集时只落地 Selenium。Playwright 作为后续扩展入口保留在配置和界面中；如果当前版本选择 Playwright 启动任务，软件会提示暂不支持，不会静默改用其他引擎。
 
-如果需要先登录 Google 账户，可以使用和采集任务相同的 Selenium Chrome 用户目录打开登录浏览器：
+如果需要先登录 Google 账户，可以使用真实 Chrome 进程打开登录页，并把登录缓存写入采集任务复用的用户目录。该脚本默认优先启动系统 Chrome 安装目录下的 `chrome_proxy.exe`，避免登录阶段通过 Selenium WebDriver 打开浏览器导致 Google 提示 `This browser or app may not be secure`：
 
 ```powershell
 & 'D:\WorkSpace\Python\GMap\.conda\gmap\python.exe' -m scripts.open_login_browser --browser chrome
+```
+
+登录缓存目录固定为：
+
+```text
+D:\WorkSpace\Python\GMap\drivers\selenium-cache\chrome
+```
+
+如果需要手动指定 Chrome 启动器路径，可以执行：
+
+```powershell
+& 'D:\WorkSpace\Python\GMap\.conda\gmap\python.exe' -m scripts.open_login_browser --browser chrome --executable 'C:\Program Files\Google\Chrome\Application\chrome_proxy.exe'
+```
+
+如果 `chrome_proxy.exe` 在当前电脑上表现异常，可以改用普通 `chrome.exe`：
+
+```powershell
+& 'D:\WorkSpace\Python\GMap\.conda\gmap\python.exe' -m scripts.open_login_browser --browser chrome --no-chrome-proxy
 ```
 
 清理本地运行产物可以执行：
