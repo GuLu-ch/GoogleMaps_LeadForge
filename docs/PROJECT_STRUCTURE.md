@@ -16,7 +16,7 @@ GMap/
 ├── .gitignore
 ├── config/
 │   ├── app_config.json
-│   └── locations.de.json
+│   └── locations.json
 ├── data/
 │   └── app.sqlite3
 ├── drivers/
@@ -29,6 +29,7 @@ GMap/
 ├── scripts/
 │   ├── __init__.py
 │   ├── cleanup_runtime_data.py
+│   ├── generate_locations_config.py
 │   └── open_login_browser.py
 ├── docs/
 │   ├── REQUIREMENTS.md
@@ -92,6 +93,7 @@ GMap/
         ├── test_config_loader.py
         ├── test_database.py
         ├── test_exporter.py
+        ├── test_generate_locations_config.py
         ├── test_gui_layout.py
         ├── test_keyword_builder.py
         ├── test_maps_crawler_service.py
@@ -155,7 +157,7 @@ Anaconda 环境配置，环境名称固定为 `gmap`。
 配置文件目录。所有可迁移、可手动修改的配置都放在这里。
 
 - `app_config.json`：运行配置，包括浏览器、引擎、停留时间、滚动策略、失败阈值、路径配置。
-- `locations.de.json`：德国地区配置，包括国家、地区/州、城市、中文显示名和搜索用名称。
+- `locations.json`：全国家地区配置，包括国家、地区/州、城市、中文显示名和搜索用名称。
 
 ## data/
 
@@ -189,6 +191,7 @@ SQLite 负责保存：
 项目辅助脚本目录。
 
 - `cleanup_runtime_data.py`：清理本地运行数据库、日志、导出、调试输出和截图；默认保留关键词输入、配置文件和浏览器登录缓存，传入参数或由 GUI 设置页调用时可同步清理浏览器缓存。
+- `generate_locations_config.py`：一次性地区配置生成脚本，负责从本地国家 HTML 表和城市 JSON 数据生成 `config/locations.json`。
 - `open_login_browser.py`：直接启动系统真实 Chrome/Edge 进程打开 Google 登录页，并使用采集任务相同的项目内浏览器用户目录，便于后续采集复用登录状态；Chrome 默认优先使用 `chrome_proxy.exe`。
 
 ## docs/
@@ -334,6 +337,7 @@ GUI 模块。
 - 来源关键词合并。
 - CSV 导出。
 - Excel 导出。
+- 全国家地区配置生成脚本。
 - GUI 设置页基础控件、外观设置分组、维护按钮和项目文档入口移除规则。
 - GUI Fluent 表格列宽策略、平滑滚动和手动拖拽调整。
 - GUI 任务执行页状态反馈、不确定进度条和启动中展示。

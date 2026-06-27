@@ -173,7 +173,7 @@
 
 配置文件分为两类：
 
-- `config/locations.de.json`：国家、地区和城市配置。
+- `config/locations.json`：国家、地区和城市配置。
 - `config/app_config.json`：运行配置。
 
 配置文件必须可读、可迁移、可手动修改。新增配置字段时必须提供默认值，并更新 README 和设计文档。

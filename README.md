@@ -59,7 +59,7 @@
 ## 基本工作流
 
 1. 启动软件。
-2. 软件读取 `config/locations.de.json` 和 `config/app_config.json`。
+2. 软件读取 `config/locations.json` 和 `config/app_config.json`。
 3. 在“任务配置”页选择国家和地区。
 4. 在关键词输入框中输入行业关键词，一行一个。
 5. 生成任务预览。
@@ -245,7 +245,7 @@
 项目路径包括：
 
 - `config/app_config.json`
-- `config/locations.de.json`
+- `config/locations.json`
 - SQLite 数据库路径。
 - 导出目录。
 - 日志目录。
@@ -281,8 +281,18 @@
 
 项目配置分为两类：
 
-- `config/locations.de.json`：德国地区和城市配置。
+- `config/locations.json`：全国家地区和城市配置。
 - `config/app_config.json`：浏览器、引擎、停留时间、滚动策略、失败策略、导出路径等运行配置。
+
+如果需要根据本地原始数据重新生成全国家地区配置，可以执行：
+
+```powershell
+& 'D:\WorkSpace\Python\GMap\.conda\gmap\python.exe' -m scripts.generate_locations_config --country-table tests\guojia\guojia2.html --cities tests\json-cities\cities.json --output config\locations.json
+```
+
+生成脚本默认导入 `city`、`town`、`capital`、`municipality`、`locality` 等适合搜索的地点类型；如果某个国家没有这些类型，会使用该国家现有行政数据兜底，避免国家从配置中丢失。
+
+`tests/guojia/` 和 `tests/json-cities/` 是本地原始数据目录，只用于重新生成配置，不提交到 Git。
 
 ## 采集核心逻辑
 

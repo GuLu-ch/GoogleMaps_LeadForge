@@ -36,7 +36,7 @@ class MainWindow(FluentWindow):
         """初始化左侧导航页面。"""
         project_root = get_project_root()
         app_config = load_app_config(project_root / "config" / "app_config.json")
-        locations_config = load_locations_config(project_root / "config" / "locations.de.json")
+        locations_config = load_locations_config(project_root / "config" / "locations.json")
         database_path = resolve_project_path(app_config.paths.database)
         initialize_database(database_path)
         self.task_repository = TaskRepository(database_path)

@@ -17,14 +17,17 @@ def test_load_app_config_reads_runtime_settings():
 
 
 def test_load_locations_config_reads_germany_regions_and_cities():
-    """读取地区配置时，应能拿到德国、至少 10 个地区和测试城市。"""
-    config = load_locations_config(Path("config/locations.de.json"))
+    """读取全国家地区配置时，应能按搜索名找到德国和城市。"""
+    config = load_locations_config(Path("config/locations.json"))
 
-    germany = config.countries[0]
+    germany = next(country for country in config.countries if country.search_name == "Germany")
 
     assert germany.name == "德国"
     assert germany.search_name == "Germany"
     assert len(germany.regions) >= 10
-    assert germany.regions[0].name == "巴登-符腾堡州"
-    assert germany.regions[0].cities[1].name == "比伯拉赫"
-    assert germany.regions[0].cities[1].search_name == "Biberach"
+    assert any(region.search_name == "Baden-Württemberg" for region in germany.regions)
+    assert any(
+        city.search_name == "Biberach"
+        for region in germany.regions
+        for city in region.cities
+    )

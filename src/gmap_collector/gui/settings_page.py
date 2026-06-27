@@ -87,7 +87,7 @@ class SettingsPage(QWidget):
 
         self.path_group = SettingCardGroup("项目路径", self)
         self._add_path_card("运行配置文件", "config/app_config.json")
-        self._add_path_card("地区配置文件", "config/locations.de.json")
+        self._add_path_card("地区配置文件", "config/locations.json")
         self._add_path_card("SQLite 数据库", self.app_config.paths.database)
         self._add_path_card("导出目录", self.app_config.paths.export_dir)
         self._add_path_card("日志目录", self.app_config.paths.log_dir)
