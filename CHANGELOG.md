@@ -1,0 +1,54 @@
+# 更新记录
+
+本项目遵循中文更新记录。每次功能、文档、配置、数据库结构或开发流程发生变化时，都必须更新本文档。
+
+## [未发布]
+
+### 新增
+
+- 初始化项目文档体系。
+- 明确第一版目标：基于 Python 的 Google Maps 商家信息采集桌面软件。
+- 明确技术路线：PySide6、PySide6-Fluent-Widgets、SQLite、Selenium、Playwright、JSON 配置、CSV/Excel 导出。
+- 明确第一版 GUI 页面：任务配置、任务执行、结果管理、设置与文档。
+- 调整 GUI 导航方式：由顶部 Tab 改为左侧侧边导航。
+- 明确第一版采集字段：商家名称、地址、电话、官网、评分、评论数量、商家分类、Google Maps 链接、来源关键词。
+- 明确全局去重规则：按 Google Maps 链接去重。
+- 明确来源关键词合并规则：多个关键词用英文逗号分隔。
+- 明确运行策略：单进程、单浏览器窗口、可视化浏览器。
+- 明确暂停、继续、失败重试、连续失败自动暂停需求。
+- 新增德国地区配置样例。
+- 新增运行配置样例。
+- 新增环境管理要求：Conda 环境名固定为 `gmap`，Python 优先使用 3.11。
+- 新增依赖安装要求：pip 优先使用清华源。
+- 新增驱动和自动化工具缓存目录要求：统一放入项目内 `drivers/`。
+- 调整 `PySide6-Fluent-Widgets` 依赖版本为 `1.11.2`，确保当前清华 PyPI 源可安装。
+- 创建项目内 Conda 环境 `.conda/gmap`。
+- 安装并验证 PySide6、PySide6-Fluent-Widgets、Selenium、Playwright、pandas、openpyxl、pytest 等依赖。
+- 安装 Playwright Chromium 到 `drivers/playwright-browsers/`。
+- 新增 `pyproject.toml`，支持 `src/` 布局和可编辑安装。
+- 新增 `pytest.ini`，配置单元测试导入路径。
+- 新增配置读取模块。
+- 新增关键词和 Google Maps URL 生成模块。
+- 新增 SQLite 表结构初始化。
+- 新增商家记录仓储，支持按 Google Maps 链接去重和来源关键词合并。
+- 新增 CSV 和 Excel 导出模块。
+- 新增 Selenium 和 Playwright 浏览器引擎接口骨架。
+- 新增 Google Maps 列表解析器骨架，暂不写死 DOM 选择器。
+- 新增 PySide6-Fluent-Widgets 左侧导航 GUI 骨架。
+- 新增单元测试，覆盖配置读取、关键词生成、数据库初始化、商家去重和导出。
+- 项目正式命名为 `GoogleMaps_LeadForge`。
+- 新增 GPL-3.0-only 许可证。
+- 新增贡献指南、行为准则、安全策略、Issue 模板和 PR 模板。
+
+### 说明
+
+- `source_keywords` 字段只保存用户输入的行业关键词，完整搜索词由命中关系表保存，避免逗号分隔歧义。
+
+### 暂不支持
+
+- 街道级搜索。
+- 多浏览器并发。
+- 无头模式。
+- 自动绕过验证码或风控页面。
+- 点击商家详情页深度采集。
+- 云端同步。

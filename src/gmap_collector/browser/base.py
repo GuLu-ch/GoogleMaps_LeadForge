@@ -1,0 +1,45 @@
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class BrowserPageSnapshot:
+    """浏览器页面快照。
+
+    解析层只依赖快照中的 HTML，不依赖 Selenium 或 Playwright 对象，避免跨层耦合。
+    """
+
+    html: str
+    current_url: str
+
+
+class BrowserEngine(ABC):
+    """浏览器引擎统一接口。
+
+    Selenium 和 Playwright 都必须实现这个接口。任务调度层只依赖该抽象接口，
+    不关心底层使用哪一种自动化库。
+    """
+
+    @abstractmethod
+    def start(self) -> None:
+        """启动可视化浏览器。"""
+
+    @abstractmethod
+    def close(self) -> None:
+        """关闭浏览器并释放资源。"""
+
+    @abstractmethod
+    def open_url(self, url: str) -> None:
+        """打开指定 URL。"""
+
+    @abstractmethod
+    def get_snapshot(self) -> BrowserPageSnapshot:
+        """返回当前页面 HTML 快照。"""
+
+    @abstractmethod
+    def scroll_results(self) -> None:
+        """滚动 Google Maps 搜索结果列表。"""
+
+    @abstractmethod
+    def is_at_results_bottom(self) -> bool:
+        """判断搜索结果列表是否已经到底。"""

@@ -1,0 +1,37 @@
+{
+  "browser": {
+    "default_browser": "chrome",
+    "supported_browsers": [
+      "chrome",
+      "edge"
+    ],
+    "default_engine": "selenium",
+    "supported_engines": [
+      "selenium",
+      "playwright"
+    ],
+    "headless": false
+  },
+  "crawler": {
+    "page_initial_wait_seconds": 5,
+    "keyword_wait_seconds_min": 8,
+    "keyword_wait_seconds_max": 15,
+    "scroll_wait_seconds_min": 2,
+    "scroll_wait_seconds_max": 5,
+    "max_scroll_rounds": 30,
+    "max_no_new_results_rounds": 3,
+    "page_load_timeout_seconds": 60,
+    "consecutive_failure_pause_threshold": 3
+  },
+  "paths": {
+    "database": "data/app.sqlite3",
+    "export_dir": "exports",
+    "log_dir": "logs",
+    "selenium_cache_dir": "drivers/selenium-cache",
+    "playwright_browsers_dir": "drivers/playwright-browsers"
+  },
+  "export": {
+    "csv_encoding": "utf-8-sig",
+    "excel_file_extension": "xlsx"
+  }
+}

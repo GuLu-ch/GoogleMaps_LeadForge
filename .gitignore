@@ -1,0 +1,12 @@
+.conda/
+.vscode/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+data/*.sqlite3
+exports/*
+!exports/.gitkeep
+logs/*
+!logs/.gitkeep
+drivers/playwright-browsers/
+drivers/selenium-cache/

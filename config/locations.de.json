@@ -1,0 +1,142 @@
+{
+  "countries": [
+    {
+      "name": "德国",
+      "search_name": "Germany",
+      "regions": [
+        {
+          "name": "巴登-符腾堡州",
+          "search_name": "Baden-Wuerttemberg",
+          "cities": [
+            {
+              "name": "斯图加特",
+              "search_name": "Stuttgart"
+            },
+            {
+              "name": "比伯拉赫",
+              "search_name": "Biberach"
+            }
+          ]
+        },
+        {
+          "name": "巴伐利亚州",
+          "search_name": "Bavaria",
+          "cities": [
+            {
+              "name": "慕尼黑",
+              "search_name": "Munich"
+            },
+            {
+              "name": "纽伦堡",
+              "search_name": "Nuremberg"
+            }
+          ]
+        },
+        {
+          "name": "柏林州",
+          "search_name": "Berlin",
+          "cities": [
+            {
+              "name": "柏林",
+              "search_name": "Berlin"
+            }
+          ]
+        },
+        {
+          "name": "勃兰登堡州",
+          "search_name": "Brandenburg",
+          "cities": [
+            {
+              "name": "波茨坦",
+              "search_name": "Potsdam"
+            },
+            {
+              "name": "科特布斯",
+              "search_name": "Cottbus"
+            }
+          ]
+        },
+        {
+          "name": "不来梅州",
+          "search_name": "Bremen",
+          "cities": [
+            {
+              "name": "不来梅",
+              "search_name": "Bremen"
+            },
+            {
+              "name": "不来梅港",
+              "search_name": "Bremerhaven"
+            }
+          ]
+        },
+        {
+          "name": "汉堡州",
+          "search_name": "Hamburg",
+          "cities": [
+            {
+              "name": "汉堡",
+              "search_name": "Hamburg"
+            }
+          ]
+        },
+        {
+          "name": "黑森州",
+          "search_name": "Hesse",
+          "cities": [
+            {
+              "name": "法兰克福",
+              "search_name": "Frankfurt"
+            },
+            {
+              "name": "威斯巴登",
+              "search_name": "Wiesbaden"
+            }
+          ]
+        },
+        {
+          "name": "下萨克森州",
+          "search_name": "Lower Saxony",
+          "cities": [
+            {
+              "name": "汉诺威",
+              "search_name": "Hanover"
+            },
+            {
+              "name": "布伦瑞克",
+              "search_name": "Braunschweig"
+            }
+          ]
+        },
+        {
+          "name": "北莱茵-威斯特法伦州",
+          "search_name": "North Rhine-Westphalia",
+          "cities": [
+            {
+              "name": "科隆",
+              "search_name": "Cologne"
+            },
+            {
+              "name": "杜塞尔多夫",
+              "search_name": "Duesseldorf"
+            }
+          ]
+        },
+        {
+          "name": "莱茵兰-普法尔茨州",
+          "search_name": "Rhineland-Palatinate",
+          "cities": [
+            {
+              "name": "美因茨",
+              "search_name": "Mainz"
+            },
+            {
+              "name": "路德维希港",
+              "search_name": "Ludwigshafen"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
