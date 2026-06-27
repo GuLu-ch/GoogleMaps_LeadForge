@@ -1,5 +1,8 @@
-from PySide6.QtWidgets import QHBoxLayout, QTableWidget, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QTableWidget, QTextEdit, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, LineEdit, PrimaryPushButton, PushButton
+
+from gmap_collector.gui.layout_utils import build_adaptive_page
+from gmap_collector.gui.table_utils import apply_mixed_table_resize
 
 
 class ResultPage(QWidget):
@@ -14,7 +17,7 @@ class ResultPage(QWidget):
         self._build_ui()
 
     def _build_ui(self) -> None:
-        root_layout = QVBoxLayout(self)
+        root_layout, _, content_root_layout = build_adaptive_page(self)
 
         filter_layout = QHBoxLayout()
         self.keyword_filter = LineEdit()
@@ -50,9 +53,29 @@ class ResultPage(QWidget):
                 "最后更新时间",
             ]
         )
-        root_layout.addWidget(self.result_table)
+        apply_mixed_table_resize(
+            self.result_table,
+            stretch_columns={7},
+            column_widths={
+                0: 200,
+                1: 280,
+                2: 150,
+                3: 220,
+                4: 80,
+                5: 110,
+                6: 160,
+                8: 180,
+                9: 180,
+                10: 180,
+            },
+            default_width=150,
+        )
+        self.result_table.setMinimumHeight(360)
+        self.result_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        content_root_layout.addWidget(self.result_table)
 
-        root_layout.addWidget(BodyLabel("详情"))
+        content_root_layout.addWidget(BodyLabel("详情"))
         self.detail_view = QTextEdit()
         self.detail_view.setReadOnly(True)
-        root_layout.addWidget(self.detail_view)
+        self.detail_view.setMinimumHeight(160)
+        content_root_layout.addWidget(self.detail_view)

@@ -54,6 +54,7 @@ GMap/
 │       │   ├── main_window.py
 │       │   ├── result_page.py
 │       │   ├── settings_page.py
+│       │   ├── table_utils.py
 │       │   ├── task_config_page.py
 │       │   └── task_run_page.py
 │       ├── tasks/
@@ -79,6 +80,7 @@ GMap/
         ├── test_config_loader.py
         ├── test_database.py
         ├── test_exporter.py
+        ├── test_gui_layout.py
         ├── test_keyword_builder.py
         └── test_repositories.py
 ```
@@ -221,10 +223,12 @@ GUI 模块。
 当前已实现：
 
 - `main_window.py`：PySide6-Fluent-Widgets 左侧导航主窗口。
-- `task_config_page.py`：任务配置页静态控件。
-- `task_run_page.py`：任务执行页静态控件。
-- `result_page.py`：结果管理页静态控件。
-- `settings_page.py`：设置与文档页静态控件。
+- `layout_utils.py`：页面级自适应布局工具，统一创建滚动内容区和固定操作栏。
+- `task_config_page.py`：任务配置页控件，负责地区、关键词、本次任务运行参数和任务预览表。
+- `task_run_page.py`：任务执行页控件，负责任务控制按钮、状态面板、关键词队列和运行日志。
+- `result_page.py`：结果管理页控件，负责筛选条件、商家结果表和详情区。
+- `settings_page.py`：设置与文档页控件，负责展示全局默认运行参数、项目路径和文档入口。
+- `table_utils.py`：表格列宽策略工具，统一处理默认列宽、手动拖拽、长列拉伸和滚动条策略。
 
 ### tasks/
 
@@ -293,3 +297,5 @@ GUI 模块。
 - 来源关键词合并。
 - CSV 导出。
 - Excel 导出。
+- GUI 设置页基础控件。
+- GUI 表格列宽策略。
