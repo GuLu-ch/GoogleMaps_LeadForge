@@ -1,7 +1,8 @@
-from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, CheckBox, ComboBox, LineEdit, PlainTextEdit, PrimaryPushButton, PushButton, SpinBox
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QSizePolicy, QTableWidgetItem, QVBoxLayout, QWidget
+from qfluentwidgets import BodyLabel, CheckBox, ComboBox, PlainTextEdit, PrimaryPushButton, PushButton, TableWidget
 
 from gmap_collector.config.schemas import AppConfig, LocationsConfig
+from gmap_collector.gui.fluent_components import create_button_row, create_labeled_spin, create_section_card
 from gmap_collector.gui.layout_utils import build_action_bar, build_adaptive_page
 from gmap_collector.gui.table_utils import apply_mixed_table_resize
 from gmap_collector.tasks.keyword_builder import KeywordTaskInput, build_task_inputs
@@ -27,41 +28,49 @@ class TaskConfigPage(QWidget):
 
     def _build_ui(self) -> None:
         root_layout, _, content_root_layout = build_adaptive_page(self)
-        content_layout = QHBoxLayout()
-        content_layout.setSpacing(12)
+        content_layout = QGridLayout()
+        content_layout.setHorizontalSpacing(14)
+        content_layout.setVerticalSpacing(14)
 
-        region_panel = QVBoxLayout()
-        region_panel.addWidget(BodyLabel("国家和地区"))
+        region_card, region_panel = create_section_card(
+            "国家和地区",
+            "从地区配置文件加载国家和地区，当前默认选择全部地区。",
+        )
         self.country_combo = ComboBox()
         self.country_combo.addItems([country.name for country in self.locations_config.countries])
         region_panel.addWidget(self.country_combo)
         self.select_all_regions_button = PushButton("全选地区")
         self.clear_regions_button = PushButton("取消全选")
         self.refresh_config_button = PushButton("刷新配置")
-        region_panel.addWidget(self.select_all_regions_button)
-        region_panel.addWidget(self.clear_regions_button)
-        region_panel.addWidget(self.refresh_config_button)
+        region_panel.addWidget(
+            create_button_row(
+                self.select_all_regions_button,
+                self.clear_regions_button,
+                self.refresh_config_button,
+            )
+        )
         self.region_container_layout = QVBoxLayout()
+        self.region_container_layout.setSpacing(6)
         region_panel.addLayout(self.region_container_layout)
         self._load_region_checkboxes()
         region_panel.addStretch(1)
 
-        keyword_panel = QVBoxLayout()
-        keyword_panel.addWidget(BodyLabel("行业关键词"))
+        keyword_card, keyword_panel = create_section_card(
+            "行业关键词",
+            "一行一个关键词，系统会自动与已选国家、地区和城市组合。",
+        )
         self.keyword_input = PlainTextEdit()
         self.keyword_input.setPlaceholderText("一行一个关键词，例如：\nCar Wrap Shop\nPPF")
-        self.keyword_input.setMinimumHeight(180)
+        self.keyword_input.setMinimumHeight(210)
         self.keyword_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         keyword_panel.addWidget(self.keyword_input)
         self.estimated_count_label = BodyLabel("预计生成任务数：0")
         self.preview_button = PrimaryPushButton("生成任务预览")
         self.clear_keywords_button = PushButton("清空关键词")
         keyword_panel.addWidget(self.estimated_count_label)
-        keyword_panel.addWidget(self.preview_button)
-        keyword_panel.addWidget(self.clear_keywords_button)
+        keyword_panel.addWidget(create_button_row(self.preview_button, self.clear_keywords_button))
 
-        runtime_panel = QVBoxLayout()
-        runtime_panel.addWidget(BodyLabel("本次任务参数"))
+        runtime_card, runtime_panel = create_section_card("本次任务参数")
         self.runtime_relation_label = BodyLabel("本次任务参数从全局默认值初始化；修改后只影响本次任务快照。")
         self.runtime_relation_label.setWordWrap(True)
         runtime_panel.addWidget(self.runtime_relation_label)
@@ -72,10 +81,15 @@ class TaskConfigPage(QWidget):
         self.engine_combo = ComboBox()
         self.engine_combo.addItems([engine.title() for engine in self.app_config.browser.supported_engines])
         self.engine_combo.setCurrentText(self.app_config.browser.default_engine.title())
-        runtime_panel.addWidget(BodyLabel("浏览器"))
-        runtime_panel.addWidget(self.browser_combo)
-        runtime_panel.addWidget(BodyLabel("自动化引擎"))
-        runtime_panel.addWidget(self.engine_combo)
+        browser_row = QWidget()
+        browser_layout = QHBoxLayout(browser_row)
+        browser_layout.setContentsMargins(0, 0, 0, 0)
+        browser_layout.setSpacing(10)
+        browser_layout.addWidget(BodyLabel("浏览器"))
+        browser_layout.addWidget(self.browser_combo, 1)
+        browser_layout.addWidget(BodyLabel("引擎"))
+        browser_layout.addWidget(self.engine_combo, 1)
+        runtime_panel.addWidget(browser_row)
         self.page_initial_wait_spin = self._add_runtime_spin(
             runtime_panel,
             "页面初始停留秒数",
@@ -141,18 +155,27 @@ class TaskConfigPage(QWidget):
         )
         self.save_config_button = PrimaryPushButton("保存配置")
         self.restore_default_button = PushButton("恢复默认配置")
-        runtime_panel.addWidget(self.save_config_button)
-        runtime_panel.addWidget(self.restore_default_button)
+        runtime_panel.addWidget(create_button_row(self.save_config_button, self.restore_default_button))
         runtime_panel.addStretch(1)
 
-        content_layout.addLayout(region_panel, 2)
-        content_layout.addLayout(keyword_panel, 3)
-        content_layout.addLayout(runtime_panel, 2)
+        content_layout.addWidget(region_card, 0, 0)
+        content_layout.addWidget(keyword_card, 0, 1)
+        content_layout.addWidget(runtime_card, 0, 2)
+        content_layout.setColumnStretch(0, 2)
+        content_layout.setColumnStretch(1, 3)
+        content_layout.setColumnStretch(2, 2)
         content_root_layout.addLayout(content_layout)
 
-        self.preview_table = QTableWidget(0, 6)
+        preview_card, preview_layout = create_section_card(
+            "任务预览",
+            "预览将要创建的关键词任务，Google Maps 链接会随组合自动生成。",
+        )
+        self.preview_table = TableWidget()
+        self.preview_table.setColumnCount(6)
+        self.preview_table.setRowCount(0)
         self.preview_table.setHorizontalHeaderLabels(["序号", "行业关键词", "城市", "地区", "国家", "Google Maps 链接"])
-        self.preview_table.setItem(0, 0, QTableWidgetItem(""))
+        self.preview_table.setBorderVisible(True)
+        self.preview_table.setBorderRadius(8)
         apply_mixed_table_resize(
             self.preview_table,
             stretch_columns={5},
@@ -165,10 +188,10 @@ class TaskConfigPage(QWidget):
             },
             default_width=140,
         )
-        self.preview_table.setMinimumHeight(220)
+        self.preview_table.setMinimumHeight(260)
         self.preview_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        content_root_layout.addWidget(BodyLabel("任务预览"))
-        content_root_layout.addWidget(self.preview_table)
+        preview_layout.addWidget(self.preview_table)
+        content_root_layout.addWidget(preview_card)
 
         action_layout = build_action_bar(root_layout)
         self.create_task_button = PrimaryPushButton("创建任务并进入执行页")
@@ -248,16 +271,13 @@ class TaskConfigPage(QWidget):
         minimum: int,
         maximum: int,
         value: int,
-    ) -> SpinBox:
+    ):
         """向运行参数区域添加一个数字输入框。
 
         任务页的控件都保留为实例属性，后续创建任务时可以直接读取当前值并写入任务快照。
         """
-        layout.addWidget(BodyLabel(label))
-        spin_box = SpinBox()
-        spin_box.setRange(minimum, maximum)
-        spin_box.setValue(value)
-        layout.addWidget(spin_box)
+        row_widget, spin_box = create_labeled_spin(label, minimum, maximum, value)
+        layout.addWidget(row_widget)
         return spin_box
 
     def _load_region_checkboxes(self) -> None:

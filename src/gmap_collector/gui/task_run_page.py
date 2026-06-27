@@ -1,7 +1,7 @@
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QSizePolicy, QSplitter, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, PrimaryPushButton, PushButton
+from PySide6.QtWidgets import QGridLayout, QTableWidgetItem, QTextEdit, QWidget
+from qfluentwidgets import IndeterminateProgressBar, PrimaryPushButton, PushButton, TableWidget
 
+from gmap_collector.gui.fluent_components import MetricCard, create_button_row, create_section_card, create_text_pair
 from gmap_collector.gui.layout_utils import build_adaptive_page
 from gmap_collector.gui.table_utils import apply_mixed_table_resize
 
@@ -21,34 +21,21 @@ class TaskRunPage(QWidget):
     def _build_ui(self) -> None:
         root_layout, _, content_root_layout = build_adaptive_page(self)
 
-        control_layout = QHBoxLayout()
-        self.start_button = PrimaryPushButton("开始")
-        self.pause_button = PushButton("暂停")
-        self.resume_button = PushButton("继续")
-        self.stop_button = PushButton("停止")
-        self.retry_failed_button = PushButton("重试失败关键词")
-        self.export_button = PushButton("导出结果")
-        for button in [
-            self.start_button,
-            self.pause_button,
-            self.resume_button,
-            self.stop_button,
-            self.retry_failed_button,
-            self.export_button,
-        ]:
-            control_layout.addWidget(button)
-        control_layout.addStretch(1)
-        root_layout.addLayout(control_layout)
+        status_card, status_layout = create_section_card(
+            "任务运行状态",
+            "展示当前批次、浏览器引擎、正在处理的关键词和实时采集统计。",
+        )
+        self.running_progress = IndeterminateProgressBar(start=False)
+        self.running_progress.setVisible(False)
+        status_layout.addWidget(self.running_progress)
 
-        middle_splitter = QSplitter(Qt.Horizontal)
-        middle_splitter.setChildrenCollapsible(False)
-        middle_splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        status_widget = QWidget()
-        status_layout = QGridLayout()
-        status_widget.setLayout(status_layout)
-        self.status_labels: dict[str, BodyLabel] = {}
-        status_items = [
+        metric_widget = QWidget()
+        metric_layout = QGridLayout(metric_widget)
+        metric_layout.setContentsMargins(0, 0, 0, 0)
+        metric_layout.setHorizontalSpacing(10)
+        metric_layout.setVerticalSpacing(10)
+        self.status_labels = {}
+        metric_titles = [
             "运行状态",
             "总关键词数",
             "已完成",
@@ -57,47 +44,73 @@ class TaskRunPage(QWidget):
             "已采集商家数",
             "去重后商家数",
             "连续失败次数",
-            "当前关键词",
-            "当前国家",
-            "当前地区",
-            "当前城市",
-            "当前浏览器引擎",
         ]
-        for index, label in enumerate(status_items):
-            status_layout.addWidget(BodyLabel(label), index, 0)
-            value_label = BodyLabel("-")
-            value_label.setWordWrap(True)
-            status_layout.addWidget(value_label, index, 1)
-            self.status_labels[label] = value_label
-        status_widget.setMinimumWidth(260)
-        middle_splitter.addWidget(status_widget)
+        for index, title in enumerate(metric_titles):
+            card = MetricCard(title)
+            metric_layout.addWidget(card, index // 4, index % 4)
+            self.status_labels[title] = card.value_label
+        status_layout.addWidget(metric_widget)
 
-        self.keyword_table = QTableWidget(0, 7)
+        context_widget = QWidget()
+        context_layout = QGridLayout(context_widget)
+        context_layout.setContentsMargins(0, 2, 0, 0)
+        context_layout.setHorizontalSpacing(14)
+        context_layout.setVerticalSpacing(8)
+        context_titles = ["当前关键词", "当前国家", "当前地区", "当前城市", "当前浏览器引擎"]
+        for index, title in enumerate(context_titles):
+            row_widget, value_label = create_text_pair(title)
+            context_layout.addWidget(row_widget, index // 2, index % 2)
+            self.status_labels[title] = value_label
+        status_layout.addWidget(context_widget)
+        content_root_layout.addWidget(status_card)
+
+        queue_card, queue_layout = create_section_card("关键词队列", "显示当前批次中每个关键词的处理状态。")
+        self.keyword_table = TableWidget()
+        self.keyword_table.setColumnCount(7)
+        self.keyword_table.setRowCount(0)
         self.keyword_table.setHorizontalHeaderLabels(["状态", "行业关键词", "城市", "地区", "国家", "失败原因", "最后执行时间"])
+        self.keyword_table.setBorderVisible(True)
+        self.keyword_table.setBorderRadius(8)
         apply_mixed_table_resize(
             self.keyword_table,
             stretch_columns={5},
             column_widths={
                 0: 100,
-                1: 200,
-                2: 160,
-                3: 180,
-                4: 140,
+                1: 220,
+                2: 170,
+                3: 190,
+                4: 150,
                 6: 180,
             },
-            default_width=140,
+            default_width=150,
         )
-        self.keyword_table.setMinimumHeight(260)
-        middle_splitter.addWidget(self.keyword_table)
-        middle_splitter.setStretchFactor(0, 2)
-        middle_splitter.setStretchFactor(1, 5)
-        content_root_layout.addWidget(middle_splitter)
+        self.keyword_table.setMinimumHeight(300)
+        queue_layout.addWidget(self.keyword_table)
+        content_root_layout.addWidget(queue_card)
 
-        content_root_layout.addWidget(BodyLabel("运行日志"))
+        log_card, log_layout = create_section_card("运行日志")
         self.log_view = QTextEdit()
         self.log_view.setReadOnly(True)
-        self.log_view.setMinimumHeight(180)
-        content_root_layout.addWidget(self.log_view)
+        self.log_view.setMinimumHeight(190)
+        log_layout.addWidget(self.log_view)
+        content_root_layout.addWidget(log_card)
+
+        self.start_button = PrimaryPushButton("开始")
+        self.pause_button = PushButton("暂停")
+        self.resume_button = PushButton("继续")
+        self.stop_button = PushButton("停止")
+        self.retry_failed_button = PushButton("重试失败关键词")
+        self.export_button = PushButton("导出结果")
+        root_layout.addWidget(
+            create_button_row(
+                self.start_button,
+                self.pause_button,
+                self.resume_button,
+                self.stop_button,
+                self.retry_failed_button,
+                self.export_button,
+            )
+        )
 
     def load_tasks(
         self,
@@ -112,7 +125,8 @@ class TaskRunPage(QWidget):
         current_task = self._current_task(tasks)
         business_stats = business_stats or {"raw_hits": 0, "deduped_businesses": 0}
 
-        self.status_labels["运行状态"].setText(self._status_text(str(batch.get("status", ""))))
+        status = str(batch.get("status", ""))
+        self.status_labels["运行状态"].setText(self._status_text(status))
         self.status_labels["总关键词数"].setText(str(batch["total_keywords"]))
         self.status_labels["已完成"].setText(str(batch["completed_keywords"]))
         self.status_labels["失败"].setText(str(batch["failed_keywords"]))
@@ -125,6 +139,7 @@ class TaskRunPage(QWidget):
         self.status_labels["当前地区"].setText(str(current_task.get("region_name", "-")))
         self.status_labels["当前城市"].setText(str(current_task.get("city_name", "-")))
         self.status_labels["当前浏览器引擎"].setText(self._engine_text(runtime_config or {}))
+        self._set_progress_running(status in {"running"})
 
         self.keyword_table.setRowCount(len(tasks))
         for row_index, task in enumerate(tasks):
@@ -156,6 +171,7 @@ class TaskRunPage(QWidget):
         self.status_labels["当前城市"].setText(str(task.get("city_name", "-")))
         self.status_labels["已采集商家数"].setText(str(business_stats.get("raw_hits", 0)))
         self.status_labels["去重后商家数"].setText(str(business_stats.get("deduped_businesses", 0)))
+        self._set_progress_running(True)
 
     def _current_task(self, tasks: list[dict]) -> dict:
         """优先返回正在执行的任务，其次返回下一条待执行任务。"""
@@ -181,3 +197,11 @@ class TaskRunPage(QWidget):
             "completed": "已完成",
             "completed_with_errors": "已完成，有失败",
         }.get(status, status or "-")
+
+    def _set_progress_running(self, running: bool) -> None:
+        """根据任务状态显示或隐藏不确定进度条。"""
+        self.running_progress.setVisible(running)
+        if running:
+            self.running_progress.start()
+        else:
+            self.running_progress.stop()

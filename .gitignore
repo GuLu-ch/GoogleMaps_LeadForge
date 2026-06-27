@@ -23,6 +23,9 @@ debug/
 tmp/
 temp/
 screenshots/
+tests/guojia/
+tests/json-cities/
+tests/新建文件夹/
 *.tmp
 *.bak
 *.dump

@@ -1,126 +1,112 @@
 from pathlib import Path
 
-from PySide6.QtWidgets import QFormLayout, QHBoxLayout, QVBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, ComboBox, LineEdit, PrimaryPushButton, PushButton, SpinBox
+from PySide6.QtWidgets import QWidget
+from qfluentwidgets import (
+    ComboBox,
+    FluentIcon,
+    PrimaryPushButton,
+    PushButton,
+    SettingCard,
+    SettingCardGroup,
+    Theme,
+    setTheme,
+)
 
 from gmap_collector.config.schemas import AppConfig
+from gmap_collector.gui.fluent_components import NoWheelSpinBox, create_path_card
 from gmap_collector.gui.layout_utils import build_action_bar, build_adaptive_page
 
 
 class SettingsPage(QWidget):
-    """设置与文档页。
+    """设置页。
 
-    该页面聚合全局基础配置，避免用户在多个页面之间来回寻找常用设置。
+    该页面只承载全局默认配置、项目路径、维护操作和外观设置。本次任务参数仍在
+    “任务配置”页中编辑，并在创建批次时保存为任务快照。
     """
 
     def __init__(self, project_root: Path, app_config: AppConfig, parent: QWidget | None = None):
         super().__init__(parent)
         self.project_root = project_root
         self.app_config = app_config
+        self.path_cards = {}
         self.setObjectName("settingsPage")
         self._build_ui()
+        self._connect_signals()
 
     def _build_ui(self) -> None:
         root_layout, _, content_root_layout = build_adaptive_page(self)
 
-        runtime_form = QFormLayout()
-        runtime_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        self.appearance_group = SettingCardGroup("外观", self)
+        self.theme_combo = ComboBox()
+        self.theme_combo.addItems(["跟随系统", "亮色", "暗色"])
+        self.theme_combo.setCurrentText("跟随系统")
+        self.appearance_group.addSettingCard(
+            self._combo_card(
+                title="颜色方案",
+                content="切换软件的亮色、暗色或跟随系统主题。",
+                icon=FluentIcon.BRUSH,
+                combo_box=self.theme_combo,
+            )
+        )
+        content_root_layout.addWidget(self.appearance_group)
 
+        self.runtime_group = SettingCardGroup("全局运行设置", self)
         self.browser_combo = ComboBox()
         self.browser_combo.addItems([browser.title() for browser in self.app_config.browser.supported_browsers])
         self.browser_combo.setCurrentText(self.app_config.browser.default_browser.title())
         self.engine_combo = ComboBox()
         self.engine_combo.addItems([engine.title() for engine in self.app_config.browser.supported_engines])
         self.engine_combo.setCurrentText(self.app_config.browser.default_engine.title())
-        self.page_initial_wait_spin = SpinBox()
-        self.page_initial_wait_spin.setRange(0, 300)
-        self.page_initial_wait_spin.setValue(self.app_config.crawler.page_initial_wait_seconds)
-        self.keyword_wait_min_spin = SpinBox()
-        self.keyword_wait_min_spin.setRange(0, 600)
-        self.keyword_wait_min_spin.setValue(self.app_config.crawler.keyword_wait_seconds_min)
-        self.keyword_wait_max_spin = SpinBox()
-        self.keyword_wait_max_spin.setRange(0, 600)
-        self.keyword_wait_max_spin.setValue(self.app_config.crawler.keyword_wait_seconds_max)
-        self.scroll_wait_min_spin = SpinBox()
-        self.scroll_wait_min_spin.setRange(0, 120)
-        self.scroll_wait_min_spin.setValue(self.app_config.crawler.scroll_wait_seconds_min)
-        self.scroll_wait_max_spin = SpinBox()
-        self.scroll_wait_max_spin.setRange(0, 120)
-        self.scroll_wait_max_spin.setValue(self.app_config.crawler.scroll_wait_seconds_max)
-        self.max_scroll_rounds_spin = SpinBox()
-        self.max_scroll_rounds_spin.setRange(1, 500)
-        self.max_scroll_rounds_spin.setValue(self.app_config.crawler.max_scroll_rounds)
-        self.no_new_results_spin = SpinBox()
-        self.no_new_results_spin.setRange(1, 50)
-        self.no_new_results_spin.setValue(self.app_config.crawler.max_no_new_results_rounds)
-        self.page_timeout_spin = SpinBox()
-        self.page_timeout_spin.setRange(5, 600)
-        self.page_timeout_spin.setValue(self.app_config.crawler.page_load_timeout_seconds)
-        self.failure_threshold_spin = SpinBox()
-        self.failure_threshold_spin.setRange(1, 100)
-        self.failure_threshold_spin.setValue(self.app_config.crawler.consecutive_failure_pause_threshold)
 
-        runtime_form.addRow("默认浏览器", self.browser_combo)
-        runtime_form.addRow("默认自动化引擎", self.engine_combo)
-        runtime_form.addRow("页面初始停留秒数", self.page_initial_wait_spin)
-        runtime_form.addRow("关键词停留最小秒数", self.keyword_wait_min_spin)
-        runtime_form.addRow("关键词停留最大秒数", self.keyword_wait_max_spin)
-        runtime_form.addRow("滚动停留最小秒数", self.scroll_wait_min_spin)
-        runtime_form.addRow("滚动停留最大秒数", self.scroll_wait_max_spin)
-        runtime_form.addRow("最大滚动次数", self.max_scroll_rounds_spin)
-        runtime_form.addRow("连续无新增停止次数", self.no_new_results_spin)
-        runtime_form.addRow("页面加载超时秒数", self.page_timeout_spin)
-        runtime_form.addRow("连续失败暂停阈值", self.failure_threshold_spin)
+        self.page_initial_wait_spin = self._spin_box(0, 300, self.app_config.crawler.page_initial_wait_seconds)
+        self.keyword_wait_min_spin = self._spin_box(0, 600, self.app_config.crawler.keyword_wait_seconds_min)
+        self.keyword_wait_max_spin = self._spin_box(0, 600, self.app_config.crawler.keyword_wait_seconds_max)
+        self.scroll_wait_min_spin = self._spin_box(0, 120, self.app_config.crawler.scroll_wait_seconds_min)
+        self.scroll_wait_max_spin = self._spin_box(0, 120, self.app_config.crawler.scroll_wait_seconds_max)
+        self.max_scroll_rounds_spin = self._spin_box(1, 500, self.app_config.crawler.max_scroll_rounds)
+        self.no_new_results_spin = self._spin_box(1, 50, self.app_config.crawler.max_no_new_results_rounds)
+        self.page_timeout_spin = self._spin_box(5, 600, self.app_config.crawler.page_load_timeout_seconds)
+        self.failure_threshold_spin = self._spin_box(1, 100, self.app_config.crawler.consecutive_failure_pause_threshold)
 
-        content_root_layout.addWidget(BodyLabel("全局运行设置"))
-        content_root_layout.addLayout(runtime_form)
+        self.runtime_group.addSettingCards(
+            [
+                self._combo_card("默认浏览器", "创建新任务时默认使用的浏览器。", FluentIcon.APPLICATION, self.browser_combo),
+                self._combo_card("默认自动化引擎", "第一版采集执行使用 Selenium，Playwright 保留为后续扩展。", FluentIcon.ROBOT, self.engine_combo),
+                self._spin_card("页面初始停留秒数", "打开 Google Maps 页面后的基础等待时间。", self.page_initial_wait_spin),
+                self._spin_card("关键词停留最小秒数", "每个关键词完成后随机等待的最小值。", self.keyword_wait_min_spin),
+                self._spin_card("关键词停留最大秒数", "每个关键词完成后随机等待的最大值。", self.keyword_wait_max_spin),
+                self._spin_card("滚动停留最小秒数", "列表滚动加载商家时随机等待的最小值。", self.scroll_wait_min_spin),
+                self._spin_card("滚动停留最大秒数", "列表滚动加载商家时随机等待的最大值。", self.scroll_wait_max_spin),
+                self._spin_card("最大滚动次数", "单个搜索页面最多向下滚动的次数。", self.max_scroll_rounds_spin),
+                self._spin_card("连续无新增停止次数", "连续几轮没有新增商家后停止滚动。", self.no_new_results_spin),
+                self._spin_card("页面加载超时秒数", "浏览器等待页面加载完成的最长时间。", self.page_timeout_spin),
+                self._spin_card("连续失败暂停阈值", "连续失败达到阈值后自动暂停整个任务。", self.failure_threshold_spin),
+            ]
+        )
+        content_root_layout.addWidget(self.runtime_group)
 
-        path_form = QFormLayout()
-        path_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        self.app_config_path_input = self._readonly_path_input("config/app_config.json")
-        self.locations_path_input = self._readonly_path_input("config/locations.de.json")
-        self.database_path_input = self._readonly_path_input(str(self.app_config.paths.database))
-        self.export_dir_input = self._readonly_path_input(str(self.app_config.paths.export_dir))
-        self.log_dir_input = self._readonly_path_input(str(self.app_config.paths.log_dir))
-        self.selenium_cache_input = self._readonly_path_input(str(self.app_config.paths.selenium_cache_dir))
-        self.playwright_browsers_input = self._readonly_path_input(str(self.app_config.paths.playwright_browsers_dir))
-        for path_input in [
-            self.app_config_path_input,
-            self.locations_path_input,
-            self.database_path_input,
-            self.export_dir_input,
-            self.log_dir_input,
-            self.selenium_cache_input,
-            self.playwright_browsers_input,
-        ]:
-            path_input.setReadOnly(True)
+        self.path_group = SettingCardGroup("项目路径", self)
+        self._add_path_card("运行配置文件", "config/app_config.json")
+        self._add_path_card("地区配置文件", "config/locations.de.json")
+        self._add_path_card("SQLite 数据库", self.app_config.paths.database)
+        self._add_path_card("导出目录", self.app_config.paths.export_dir)
+        self._add_path_card("日志目录", self.app_config.paths.log_dir)
+        self._add_path_card("Selenium 缓存目录", self.app_config.paths.selenium_cache_dir)
+        self._add_path_card("Playwright 浏览器目录", self.app_config.paths.playwright_browsers_dir)
+        content_root_layout.addWidget(self.path_group)
 
-        path_form.addRow("运行配置文件", self.app_config_path_input)
-        path_form.addRow("地区配置文件", self.locations_path_input)
-        path_form.addRow("SQLite 数据库", self.database_path_input)
-        path_form.addRow("导出目录", self.export_dir_input)
-        path_form.addRow("日志目录", self.log_dir_input)
-        path_form.addRow("Selenium 缓存目录", self.selenium_cache_input)
-        path_form.addRow("Playwright 浏览器目录", self.playwright_browsers_input)
-
-        content_root_layout.addWidget(BodyLabel("项目路径"))
-        content_root_layout.addLayout(path_form)
-
-        docs_form = QFormLayout()
-        docs_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        paths = [
-            ("README", "README.md"),
-            ("智能体规范", "AGENTS.md"),
-            ("需求文档", "docs/REQUIREMENTS.md"),
-            ("设计文档", "docs/DESIGN.md"),
-            ("项目结构", "docs/PROJECT_STRUCTURE.md"),
-        ]
-        for label, relative_path in paths:
-            docs_input = self._readonly_path_input(relative_path)
-            docs_form.addRow(label, docs_input)
-
-        content_root_layout.addWidget(BodyLabel("项目文档"))
-        content_root_layout.addLayout(docs_form)
+        self.maintenance_group = SettingCardGroup("维护", self)
+        self.clear_runtime_data_button = PushButton("清空数据库和缓存")
+        clear_card = SettingCard(
+            FluentIcon.BROOM,
+            "清空运行数据",
+            "删除 SQLite 数据库、日志、导出文件、调试输出和浏览器缓存，重新开始测试。",
+            self.maintenance_group,
+        )
+        clear_card.hBoxLayout.addWidget(self.clear_runtime_data_button)
+        clear_card.hBoxLayout.addSpacing(16)
+        self.maintenance_group.addSettingCard(clear_card)
+        content_root_layout.addWidget(self.maintenance_group)
 
         action_layout = build_action_bar(root_layout)
         self.save_settings_button = PrimaryPushButton("保存全局设置")
@@ -128,25 +114,54 @@ class SettingsPage(QWidget):
         self.open_config_button = PushButton("打开配置目录")
         self.open_export_button = PushButton("打开导出目录")
         self.open_log_button = PushButton("打开日志目录")
-        self.clear_runtime_data_button = PushButton("清空数据库和缓存")
         for button in [
             self.save_settings_button,
             self.restore_default_button,
             self.open_config_button,
             self.open_export_button,
             self.open_log_button,
-            self.clear_runtime_data_button,
         ]:
             action_layout.addWidget(button)
         action_layout.addStretch(1)
 
-    def _readonly_path_input(self, relative_path: str) -> LineEdit:
-        """创建只读路径输入框。
+    def _connect_signals(self) -> None:
+        """连接设置页内部交互。"""
+        self.theme_combo.currentTextChanged.connect(self._apply_theme)
 
-        PySide6-Fluent-Widgets 的 `LineEdit` 构造函数只接收父组件，文本需要通过
-        `setText()` 设置，因此统一封装在这里，避免页面里重复写初始化细节。
-        """
-        path_input = LineEdit()
-        path_input.setText(str(self.project_root / relative_path))
-        path_input.setReadOnly(True)
-        return path_input
+    def _apply_theme(self, theme_text: str) -> None:
+        """根据下拉框选择切换应用主题。"""
+        theme_map = {
+            "亮色": Theme.LIGHT,
+            "暗色": Theme.DARK,
+            "跟随系统": Theme.AUTO,
+        }
+        setTheme(theme_map.get(theme_text, Theme.AUTO))
+
+    def _spin_box(self, minimum: int, maximum: int, value: int) -> NoWheelSpinBox:
+        """创建设置页通用数字输入框。"""
+        spin_box = NoWheelSpinBox()
+        spin_box.setRange(minimum, maximum)
+        spin_box.setValue(value)
+        spin_box.setFixedWidth(120)
+        return spin_box
+
+    def _combo_card(self, title: str, content: str, icon: FluentIcon, combo_box: ComboBox) -> SettingCard:
+        """创建带下拉选择框的设置卡片。"""
+        card = SettingCard(icon, title, content, self)
+        combo_box.setMinimumWidth(150)
+        card.hBoxLayout.addWidget(combo_box)
+        card.hBoxLayout.addSpacing(16)
+        return card
+
+    def _spin_card(self, title: str, content: str, spin_box: NoWheelSpinBox) -> SettingCard:
+        """创建带数字输入框的设置卡片。"""
+        card = SettingCard(FluentIcon.STOP_WATCH, title, content, self)
+        card.hBoxLayout.addWidget(spin_box)
+        card.hBoxLayout.addSpacing(16)
+        return card
+
+    def _add_path_card(self, title: str, relative_path: str | Path) -> None:
+        """向路径分组添加一个只读路径卡片。"""
+        card = create_path_card(title, self.project_root / relative_path)
+        self.path_cards[title] = card
+        self.path_group.addSettingCard(card)

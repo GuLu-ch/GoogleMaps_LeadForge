@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
+from qfluentwidgets import ScrollArea
 
 
 def build_adaptive_page(parent: QWidget) -> tuple[QVBoxLayout, QWidget, QVBoxLayout]:
@@ -9,13 +10,13 @@ def build_adaptive_page(parent: QWidget) -> tuple[QVBoxLayout, QWidget, QVBoxLay
     应继续添加到根布局中，这样窗口变矮时按钮不会被滚动内容挤出可视范围。
     """
     root_layout = QVBoxLayout(parent)
-    root_layout.setContentsMargins(16, 16, 16, 16)
-    root_layout.setSpacing(12)
+    root_layout.setContentsMargins(24, 20, 24, 18)
+    root_layout.setSpacing(14)
 
-    scroll_area = QScrollArea(parent)
+    scroll_area = ScrollArea(parent)
     scroll_area.setObjectName("pageScrollArea")
     scroll_area.setWidgetResizable(True)
-    scroll_area.setFrameShape(QScrollArea.NoFrame)
+    scroll_area.setFrameShape(ScrollArea.NoFrame)
     scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
@@ -23,7 +24,7 @@ def build_adaptive_page(parent: QWidget) -> tuple[QVBoxLayout, QWidget, QVBoxLay
     content_widget.setObjectName("pageScrollContent")
     content_layout = QVBoxLayout(content_widget)
     content_layout.setContentsMargins(0, 0, 0, 0)
-    content_layout.setSpacing(12)
+    content_layout.setSpacing(14)
     content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
 
     scroll_area.setWidget(content_widget)

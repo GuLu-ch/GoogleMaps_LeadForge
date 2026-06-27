@@ -1,28 +1,45 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QScrollArea
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView
+from qfluentwidgets import IndeterminateProgressBar, NavigationItemPosition, ScrollArea, SettingCardGroup, TableWidget
 
 import gmap_collector.gui.main_window as main_window_module
 from gmap_collector.app import create_application
 from gmap_collector.config.schemas import CityConfig, CountryConfig, LocationsConfig, RegionConfig
+from gmap_collector.gui.fluent_components import NoWheelSpinBox
 from gmap_collector.gui.task_config_page import TaskConfigPage
 from gmap_collector.storage.task_repository import KeywordTaskCreate
 
 
 def test_settings_page_exposes_global_runtime_controls():
-    """设置页应聚合基础全局配置，而不是只展示路径文本。"""
+    """设置页应通过 Fluent 设置卡片聚合全局配置。"""
     application, window = create_application()
 
     settings_page = window.settings_page
 
+    assert isinstance(settings_page.appearance_group, SettingCardGroup)
+    assert isinstance(settings_page.runtime_group, SettingCardGroup)
+    assert isinstance(settings_page.path_group, SettingCardGroup)
+    assert isinstance(settings_page.maintenance_group, SettingCardGroup)
+    assert settings_page.theme_combo.currentText() in {"亮色", "暗色", "跟随系统"}
     assert settings_page.browser_combo.count() == 2
     assert settings_page.engine_combo.count() == 2
-    assert Path(settings_page.database_path_input.text()).parts[-2:] == ("data", "app.sqlite3")
-    assert Path(settings_page.export_dir_input.text()).name == "exports"
+    assert Path(settings_page.path_cards["SQLite 数据库"].contentLabel.text()).parts[-2:] == ("data", "app.sqlite3")
+    assert Path(settings_page.path_cards["导出目录"].contentLabel.text()).name == "exports"
     assert settings_page.max_scroll_rounds_spin.value() == 30
     assert settings_page.save_settings_button.text() == "保存全局设置"
     assert settings_page.clear_runtime_data_button.text() == "清空数据库和缓存"
+
+    window.close()
+    application.quit()
+
+
+def test_settings_page_does_not_show_project_document_group():
+    """设置页不应展示项目文档分组，避免把开发文档混入用户配置页面。"""
+    application, window = create_application()
+
+    assert not hasattr(window.settings_page, "docs_group")
 
     window.close()
     application.quit()
@@ -88,9 +105,45 @@ def test_task_runtime_controls_are_initialized_from_global_defaults():
     application.quit()
 
 
-def test_tables_use_interactive_columns_and_scrollbars():
-    """主要表格应提供可拖拽列宽和滚动条，避免内容被固定窄列挤压。"""
+def test_runtime_spin_boxes_ignore_mouse_wheel():
+    """运行参数数字框应忽略滚轮，避免滚动页面时误改参数。"""
     application, window = create_application()
+
+    spin_boxes = [
+        window.task_config_page.page_initial_wait_spin,
+        window.task_config_page.keyword_wait_min_spin,
+        window.task_config_page.keyword_wait_max_spin,
+        window.task_config_page.scroll_wait_min_spin,
+        window.task_config_page.scroll_wait_max_spin,
+        window.task_config_page.max_scroll_rounds_spin,
+        window.task_config_page.no_new_results_spin,
+        window.task_config_page.page_timeout_spin,
+        window.task_config_page.failure_threshold_spin,
+        window.settings_page.page_initial_wait_spin,
+        window.settings_page.keyword_wait_min_spin,
+        window.settings_page.keyword_wait_max_spin,
+        window.settings_page.scroll_wait_min_spin,
+        window.settings_page.scroll_wait_max_spin,
+        window.settings_page.max_scroll_rounds_spin,
+        window.settings_page.no_new_results_spin,
+        window.settings_page.page_timeout_spin,
+        window.settings_page.failure_threshold_spin,
+    ]
+
+    assert all(isinstance(spin_box, NoWheelSpinBox) for spin_box in spin_boxes)
+    assert all(spin_box.focusPolicy() == Qt.StrongFocus for spin_box in spin_boxes)
+
+    window.close()
+    application.quit()
+
+
+def test_tables_use_interactive_columns_and_scrollbars():
+    """主要表格应使用 Fluent 表格，并提供可拖拽列宽和滚动条。"""
+    application, window = create_application()
+
+    assert isinstance(window.task_config_page.preview_table, TableWidget)
+    assert isinstance(window.task_run_page.keyword_table, TableWidget)
+    assert isinstance(window.result_page.result_table, TableWidget)
 
     preview_header = window.task_config_page.preview_table.horizontalHeader()
     result_header = window.result_page.result_table.horizontalHeader()
@@ -100,14 +153,18 @@ def test_tables_use_interactive_columns_and_scrollbars():
     assert preview_header.defaultSectionSize() >= 120
     assert window.task_config_page.preview_table.columnWidth(1) >= 180
     assert window.task_config_page.preview_table.columnWidth(2) >= 150
-    assert window.task_config_page.preview_table.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
-    assert window.task_config_page.preview_table.verticalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    assert hasattr(window.task_config_page.preview_table, "scrollDelagate")
+    assert not window.task_config_page.preview_table.scrollDelagate.hScrollBar._isForceHidden
+    assert not window.task_config_page.preview_table.scrollDelagate.vScrollBar._isForceHidden
     assert window.task_config_page.preview_table.horizontalScrollMode() == QAbstractItemView.ScrollPerPixel
 
     assert result_header.sectionResizeMode(0) == QHeaderView.Interactive
     assert result_header.sectionResizeMode(7) == QHeaderView.Stretch
     assert window.result_page.result_table.columnWidth(0) >= 180
     assert window.result_page.result_table.columnWidth(1) >= 240
+    assert hasattr(window.result_page.result_table, "scrollDelagate")
+    assert not window.result_page.result_table.scrollDelagate.hScrollBar._isForceHidden
+    assert not window.result_page.result_table.scrollDelagate.vScrollBar._isForceHidden
 
     window.close()
     application.quit()
@@ -117,6 +174,8 @@ def test_main_window_and_pages_support_adaptive_layout():
     """主窗口和主要页面应具备小窗口可滚动的自适应结构。"""
     application, window = create_application()
 
+    assert window.width() <= 1200
+    assert window.height() <= 780
     assert window.minimumWidth() >= 1100
     assert window.minimumHeight() >= 720
 
@@ -126,14 +185,38 @@ def test_main_window_and_pages_support_adaptive_layout():
         window.result_page,
         window.settings_page,
     ]:
-        scroll_area = page.findChild(QScrollArea, "pageScrollArea")
+        scroll_area = page.findChild(ScrollArea, "pageScrollArea")
         assert scroll_area is not None
         assert scroll_area.widgetResizable()
-        assert scroll_area.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
-        assert scroll_area.verticalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+        assert hasattr(scroll_area, "scrollDelagate")
+        assert not scroll_area.scrollDelagate.hScrollBar._isForceHidden
+        assert not scroll_area.scrollDelagate.vScrollBar._isForceHidden
 
     assert window.task_config_page.create_task_button.parent() is window.task_config_page
     assert window.settings_page.save_settings_button.parent() is window.settings_page
+
+    window.close()
+    application.quit()
+
+
+def test_settings_navigation_item_is_placed_at_bottom():
+    """设置入口应固定在左侧导航底部，和普通业务页面分离。"""
+    application, window = create_application()
+
+    setting_item = window.navigationInterface.widget(window.settings_page.objectName())
+
+    assert setting_item is not None
+    assert setting_item.property("position") == NavigationItemPosition.BOTTOM
+
+    window.close()
+    application.quit()
+
+
+def test_main_window_uses_compact_navigation_expand_width():
+    """左侧导航展开宽度应比组件默认值更紧凑，减少内容区被占用。"""
+    application, window = create_application()
+
+    assert window.navigationInterface.panel.expandWidth == 220
 
     window.close()
     application.quit()
@@ -242,8 +325,11 @@ def test_task_run_page_shows_runtime_context_and_current_task():
 
 
 def test_task_run_page_shows_starting_state_before_browser_ready():
-    """点击开始后，即使浏览器还在启动，也应立即展示启动状态和下一条任务信息。"""
+    """点击开始后，应立即展示启动状态、下一条任务信息和加载进度条。"""
     application, window = create_application()
+
+    assert isinstance(window.task_run_page.running_progress, IndeterminateProgressBar)
+    assert window.task_run_page.running_progress.isHidden()
 
     window.task_run_page.show_starting_state(
         runtime_config={"engine_name": "selenium", "browser_name": "chrome"},
@@ -263,6 +349,19 @@ def test_task_run_page_shows_starting_state_before_browser_ready():
     assert labels["当前国家"].text() == "德国"
     assert labels["当前地区"].text() == "巴伐利亚州"
     assert labels["当前城市"].text() == "慕尼黑"
+    assert not window.task_run_page.running_progress.isHidden()
+
+    window.task_run_page.load_tasks(
+        batch={
+            "status": "completed",
+            "total_keywords": 1,
+            "completed_keywords": 1,
+            "failed_keywords": 0,
+        },
+        tasks=[],
+        runtime_config={"engine_name": "selenium", "browser_name": "chrome"},
+    )
+    assert window.task_run_page.running_progress.isHidden()
 
     window.close()
     application.quit()

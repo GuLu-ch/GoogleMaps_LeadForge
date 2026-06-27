@@ -1,6 +1,7 @@
-from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, LineEdit, PrimaryPushButton, PushButton
+from PySide6.QtWidgets import QSizePolicy, QTableWidgetItem, QTextEdit, QWidget
+from qfluentwidgets import PrimaryPushButton, PushButton, SearchLineEdit, TableWidget
 
+from gmap_collector.gui.fluent_components import create_button_row, create_section_card
 from gmap_collector.gui.layout_utils import build_adaptive_page
 from gmap_collector.gui.table_utils import apply_mixed_table_resize
 
@@ -19,25 +20,32 @@ class ResultPage(QWidget):
     def _build_ui(self) -> None:
         root_layout, _, content_root_layout = build_adaptive_page(self)
 
-        filter_layout = QHBoxLayout()
-        self.keyword_filter = LineEdit()
-        self.keyword_filter.setPlaceholderText("关键词")
-        self.region_filter = LineEdit()
-        self.region_filter.setPlaceholderText("地区/城市/分类")
+        filter_card, filter_layout = create_section_card(
+            "结果筛选",
+            "按关键词、地区、城市或商家分类快速定位已去重的商家记录。",
+        )
+        self.keyword_filter = SearchLineEdit()
+        self.keyword_filter.setPlaceholderText("搜索关键词")
+        self.region_filter = SearchLineEdit()
+        self.region_filter.setPlaceholderText("搜索地区 / 城市 / 分类")
         self.refresh_button = PushButton("刷新数据")
         self.export_csv_button = PrimaryPushButton("导出 CSV")
         self.export_excel_button = PrimaryPushButton("导出 Excel")
-        for widget in [
-            self.keyword_filter,
-            self.region_filter,
-            self.refresh_button,
-            self.export_csv_button,
-            self.export_excel_button,
-        ]:
-            filter_layout.addWidget(widget)
-        root_layout.addLayout(filter_layout)
+        filter_layout.addWidget(self.keyword_filter)
+        filter_layout.addWidget(self.region_filter)
+        filter_layout.addWidget(
+            create_button_row(
+                self.refresh_button,
+                self.export_csv_button,
+                self.export_excel_button,
+            )
+        )
+        content_root_layout.addWidget(filter_card)
 
-        self.result_table = QTableWidget(0, 11)
+        table_card, table_layout = create_section_card("商家结果", "表格展示全局去重后的商家信息。")
+        self.result_table = TableWidget()
+        self.result_table.setColumnCount(11)
+        self.result_table.setRowCount(0)
         self.result_table.setHorizontalHeaderLabels(
             [
                 "商家名称",
@@ -53,6 +61,8 @@ class ResultPage(QWidget):
                 "最后更新时间",
             ]
         )
+        self.result_table.setBorderVisible(True)
+        self.result_table.setBorderRadius(8)
         apply_mixed_table_resize(
             self.result_table,
             stretch_columns={7},
@@ -72,13 +82,15 @@ class ResultPage(QWidget):
         )
         self.result_table.setMinimumHeight(360)
         self.result_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        content_root_layout.addWidget(self.result_table)
+        table_layout.addWidget(self.result_table)
+        content_root_layout.addWidget(table_card)
 
-        content_root_layout.addWidget(BodyLabel("详情"))
+        detail_card, detail_layout = create_section_card("详情")
         self.detail_view = QTextEdit()
         self.detail_view.setReadOnly(True)
         self.detail_view.setMinimumHeight(160)
-        content_root_layout.addWidget(self.detail_view)
+        detail_layout.addWidget(self.detail_view)
+        content_root_layout.addWidget(detail_card)
 
     def load_businesses(self, businesses: list[dict]) -> None:
         """加载去重后的商家结果。"""

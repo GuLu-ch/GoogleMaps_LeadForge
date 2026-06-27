@@ -2,7 +2,7 @@ from datetime import datetime
 
 from PySide6.QtWidgets import QDialog
 from PySide6.QtCore import QSize
-from qfluentwidgets import FluentIcon, FluentWindow, MessageBox
+from qfluentwidgets import FluentIcon, FluentWindow, MessageBox, NavigationItemPosition
 
 from gmap_collector.common.paths import get_project_root, resolve_project_path
 from gmap_collector.config.loader import load_app_config, load_locations_config
@@ -28,7 +28,8 @@ class MainWindow(FluentWindow):
         super().__init__()
         self.setWindowTitle("GoogleMaps_LeadForge")
         self.setMinimumSize(QSize(1100, 720))
-        self.resize(QSize(1280, 820))
+        self.resize(QSize(1180, 760))
+        self.navigationInterface.setExpandWidth(220)
         self._init_pages()
 
     def _init_pages(self) -> None:
@@ -53,7 +54,13 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.task_config_page, FluentIcon.EDIT, "任务配置")
         self.addSubInterface(self.task_run_page, FluentIcon.PLAY, "任务执行")
         self.addSubInterface(self.result_page, FluentIcon.VIEW, "结果管理")
-        self.addSubInterface(self.settings_page, FluentIcon.SETTING, "设置与文档")
+        settings_item = self.addSubInterface(
+            self.settings_page,
+            FluentIcon.SETTING,
+            "设置",
+            NavigationItemPosition.BOTTOM,
+        )
+        settings_item.setProperty("position", NavigationItemPosition.BOTTOM)
         self._connect_page_actions()
         self.restore_latest_resumable_batch()
 
