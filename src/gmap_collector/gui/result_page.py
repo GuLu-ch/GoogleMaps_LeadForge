@@ -1,5 +1,6 @@
+from PySide6.QtCore import QSignalBlocker
 from PySide6.QtWidgets import QSizePolicy, QTableWidgetItem, QTextEdit, QWidget
-from qfluentwidgets import PrimaryPushButton, PushButton, SearchLineEdit, TableWidget
+from qfluentwidgets import ComboBox, PrimaryPushButton, PushButton, SearchLineEdit, TableWidget
 
 from gmap_collector.gui.fluent_components import create_button_row, create_section_card
 from gmap_collector.gui.layout_utils import build_adaptive_page
@@ -22,8 +23,10 @@ class ResultPage(QWidget):
 
         filter_card, filter_layout = create_section_card(
             "结果筛选",
-            "按关键词、地区、城市或商家分类快速定位已去重的商家记录。",
+            "以任务为基本单位查看和导出商家结果，并可按关键词、地区、城市或商家分类辅助定位。",
         )
+        self.task_batch_combo = ComboBox()
+        self.task_batch_combo.setMinimumWidth(320)
         self.keyword_filter = SearchLineEdit()
         self.keyword_filter.setPlaceholderText("搜索关键词")
         self.region_filter = SearchLineEdit()
@@ -31,6 +34,7 @@ class ResultPage(QWidget):
         self.refresh_button = PushButton("刷新数据")
         self.export_csv_button = PrimaryPushButton("导出 CSV")
         self.export_excel_button = PrimaryPushButton("导出 Excel")
+        filter_layout.addWidget(self.task_batch_combo)
         filter_layout.addWidget(self.keyword_filter)
         filter_layout.addWidget(self.region_filter)
         filter_layout.addWidget(
@@ -146,3 +150,44 @@ class ResultPage(QWidget):
             ]
             for column_index, value in enumerate(values):
                 self.result_table.setItem(row_index, column_index, QTableWidgetItem(str(value)))
+
+    def load_task_batches(self, batches: list[dict]) -> None:
+        """加载可查看结果的任务批次。"""
+        current_batch_id = self.selected_task_batch_id()
+        with QSignalBlocker(self.task_batch_combo):
+            self.task_batch_combo.clear()
+            for batch in batches:
+                self.task_batch_combo.addItem(self._task_batch_label(batch), userData=int(batch["id"]))
+            if current_batch_id is not None:
+                self.select_task_batch(current_batch_id)
+
+    def selected_task_batch_id(self) -> int | None:
+        """返回当前选择的任务批次 ID。"""
+        current_data = self.task_batch_combo.currentData()
+        return int(current_data) if current_data is not None else None
+
+    def select_task_batch(self, batch_id: int) -> None:
+        """按批次 ID 选择结果任务。"""
+        for index in range(self.task_batch_combo.count()):
+            if self.task_batch_combo.itemData(index) == batch_id:
+                self.task_batch_combo.setCurrentIndex(index)
+                return
+
+    def _task_batch_label(self, batch: dict) -> str:
+        """格式化结果任务下拉框文本。"""
+        return (
+            f"#{batch['id']} {batch['name']} | "
+            f"{self._status_text(batch['status'])} | "
+            f"{batch['completed_keywords']}/{batch['total_keywords']} 完成"
+        )
+
+    def _status_text(self, status: str) -> str:
+        """将数据库任务状态转为中文。"""
+        return {
+            "pending": "待执行",
+            "running": "运行中",
+            "paused": "已暂停",
+            "stopped": "已停止",
+            "completed": "已完成",
+            "completed_with_errors": "已完成，有失败",
+        }.get(status, status or "-")

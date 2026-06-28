@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QSizePolicy, QTableWidgetItem, QVBoxLayout, QWidget
 from PySide6.QtCore import Qt
-from qfluentwidgets import BodyLabel, CheckBox, ComboBox, PlainTextEdit, PrimaryPushButton, PushButton, ScrollArea, TableWidget
+from qfluentwidgets import BodyLabel, CheckBox, ComboBox, LineEdit, PlainTextEdit, PrimaryPushButton, PushButton, ScrollArea, TableWidget
 
 from gmap_collector.config.schemas import AppConfig, LocationsConfig
 from gmap_collector.gui.fluent_components import create_button_row, create_labeled_spin, create_section_card
@@ -73,6 +73,10 @@ class TaskConfigPage(QWidget):
             "行业关键词",
             "一行一个关键词，系统会自动与已选国家、地区和城市组合。",
         )
+        self.task_name_input = LineEdit()
+        self.task_name_input.setPlaceholderText("任务名称，例如：德国贴膜采集任务")
+        self.task_name_input.setText("Google Maps 采集任务")
+        keyword_panel.addWidget(self.task_name_input)
         self.keyword_input = PlainTextEdit()
         self.keyword_input.setPlaceholderText("一行一个关键词，例如：\nCar Wrap Shop\nPPF")
         self.keyword_input.setMinimumHeight(210)
@@ -227,6 +231,10 @@ class TaskConfigPage(QWidget):
     def industry_keywords(self) -> list[str]:
         """返回用户输入的行业关键词。"""
         return [line.strip() for line in self.keyword_input.toPlainText().splitlines() if line.strip()]
+
+    def task_name(self) -> str:
+        """返回用户输入的任务名称。"""
+        return self.task_name_input.text().strip() or "Google Maps 采集任务"
 
     def select_all_regions(self) -> None:
         """选择当前国家下全部地区。"""

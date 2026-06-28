@@ -40,6 +40,14 @@ class BrowserEngine(ABC):
         """
         return True
 
+    def wait_for_page_ready(self, timeout_seconds: int = 20) -> bool:
+        """等待普通网页 DOM 加载完成。
+
+        官网探索兜底只需要拿到当前页面 HTML，不依赖 Google Maps 的结果列表元素。
+        默认返回 True，具体浏览器引擎可覆盖为更严格的等待逻辑。
+        """
+        return True
+
     @abstractmethod
     def get_snapshot(self) -> BrowserPageSnapshot:
         """返回当前页面 HTML 快照。"""

@@ -3,6 +3,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from gmap_collector.parsers.website_info_parser import WebsiteInfo
+
 
 class WebsiteExplorationRepository:
     """官网探索任务仓储。
@@ -138,6 +140,66 @@ class WebsiteExplorationRepository:
         """标记官网探索任务跳过。"""
         self._update_task_status(task_id, "skipped", failure_reason)
 
+    def save_task_result(self, task_id: int, info: WebsiteInfo) -> None:
+        """保存官网探索结果并标记任务成功。
+
+        官网探索结果最终汇总到商家主表，结果管理页和导出都从商家主表读取。
+        多值字段按英文逗号合并，便于 CSV/Excel 直接展示。
+        """
+        with self._connect() as connection:
+            task = connection.execute(
+                "SELECT * FROM website_exploration_tasks WHERE id = ?",
+                (task_id,),
+            ).fetchone()
+            if task is None:
+                raise ValueError(f"官网探索任务不存在: {task_id}")
+
+            connection.execute(
+                """
+                UPDATE businesses
+                SET explored_phone = ?,
+                    emails = ?,
+                    instagram = ?,
+                    tiktok = ?,
+                    twitter_x = ?,
+                    facebook = ?,
+                    linkedin = ?,
+                    youtube = ?,
+                    whatsapp = ?,
+                    seo_keywords = ?,
+                    website_exploration_status = '已完成',
+                    website_explored_at = CURRENT_TIMESTAMP,
+                    last_seen_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (
+                    _join_values(info.phones),
+                    _join_values(info.emails),
+                    _join_values(info.instagram),
+                    _join_values(info.tiktok),
+                    _join_values(info.twitter_x),
+                    _join_values(info.facebook),
+                    _join_values(info.linkedin),
+                    _join_values(info.youtube),
+                    _join_values(info.whatsapp),
+                    _join_values(info.seo_keywords),
+                    int(task["business_id"]),
+                ),
+            )
+            connection.execute(
+                """
+                UPDATE website_exploration_tasks
+                SET status = 'success',
+                    failure_reason = '',
+                    last_run_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (task_id,),
+            )
+            self._refresh_batch_counts(connection, int(task["batch_id"]))
+            connection.commit()
+
     def refresh_batch_counts(self, batch_id: int) -> None:
         """刷新官网探索批次统计。"""
         with self._connect() as connection:
@@ -215,6 +277,12 @@ class WebsiteExplorationRepository:
     def _update_task_status(self, task_id: int, status: str, failure_reason: str) -> None:
         """更新官网探索任务状态。"""
         with self._connect() as connection:
+            task = connection.execute(
+                "SELECT batch_id FROM website_exploration_tasks WHERE id = ?",
+                (task_id,),
+            ).fetchone()
+            if task is None:
+                raise ValueError(f"官网探索任务不存在: {task_id}")
             connection.execute(
                 """
                 UPDATE website_exploration_tasks
@@ -226,6 +294,7 @@ class WebsiteExplorationRepository:
                 """,
                 (status, failure_reason, task_id),
             )
+            self._refresh_batch_counts(connection, int(task["batch_id"]))
             connection.commit()
 
     def _connect(self) -> sqlite3.Connection:
@@ -242,3 +311,8 @@ def _load_runtime_config(value: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return loaded if isinstance(loaded, dict) else {}
+
+
+def _join_values(values: list[str]) -> str:
+    """将多值字段合并为英文逗号分隔字符串。"""
+    return ",".join(value.strip() for value in values if value.strip())

@@ -1,16 +1,95 @@
 from pathlib import Path
 
+import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QSizePolicy
 from qfluentwidgets import IndeterminateProgressBar, NavigationItemPosition, ScrollArea, SettingCardGroup, TableWidget
 
 import gmap_collector.gui.main_window as main_window_module
 from gmap_collector.app import create_application
+from gmap_collector.common.paths import get_project_root
 from gmap_collector.config.schemas import CityConfig, CountryConfig, LocationsConfig, RegionConfig
 from gmap_collector.common.models import BusinessRecord
 from gmap_collector.gui.fluent_components import NoWheelSpinBox
 from gmap_collector.gui.task_config_page import TaskConfigPage
 from gmap_collector.storage.task_repository import KeywordTaskCreate
+
+
+def _install_temp_runtime_paths(monkeypatch, tmp_path) -> None:
+    """让 GUI 测试使用临时运行目录，避免污染项目真实数据库。"""
+    project_root = get_project_root()
+    real_cleanup_runtime_data = main_window_module.cleanup_runtime_data
+
+    def fake_resolve_project_path(path):
+        candidate = Path(path)
+        if candidate.is_absolute():
+            return candidate
+        if candidate.parts and candidate.parts[0] in {"data", "exports", "logs", "drivers"}:
+            return tmp_path / candidate
+        return project_root / candidate
+
+    def fake_cleanup_runtime_data(project_root, include_browser_cache=False, reset_locked_database=False):
+        return real_cleanup_runtime_data(
+            tmp_path,
+            include_browser_cache=include_browser_cache,
+            reset_locked_database=reset_locked_database,
+        )
+
+    monkeypatch.setattr(main_window_module, "resolve_project_path", fake_resolve_project_path)
+    monkeypatch.setattr(main_window_module, "cleanup_runtime_data", fake_cleanup_runtime_data)
+
+
+@pytest.fixture(autouse=True)
+def isolate_gui_runtime_paths(monkeypatch, tmp_path):
+    """每个 GUI 测试使用独立 SQLite 和运行目录。"""
+    _install_temp_runtime_paths(monkeypatch, tmp_path)
+
+
+def _create_maps_batch_with_business(
+    window,
+    batch_name: str,
+    keyword: str,
+    city_name: str,
+    region_name: str,
+    business_name: str,
+    google_maps_url: str,
+    website: str,
+) -> int:
+    """创建带一条关键词和一条商家结果的测试采集任务。"""
+    batch_id = window.task_repository.create_batch(batch_name)
+    window.task_repository.add_keyword_tasks(
+        batch_id,
+        [
+            KeywordTaskCreate(
+                keyword=keyword,
+                country_name="德国",
+                country_search_name="Germany",
+                region_name=region_name,
+                region_search_name=region_name,
+                city_name=city_name,
+                city_search_name=city_name,
+                query_text=f"{keyword} in {city_name}, {region_name}, Germany",
+                search_url=f"https://www.google.com/maps/search/{keyword}+in+{city_name}",
+            )
+        ],
+    )
+    keyword_task = window.task_repository.list_keyword_tasks(batch_id)[0]
+    window.business_repository.upsert_business(
+        BusinessRecord(
+            name=business_name,
+            address="Street 1",
+            phone="+49 111",
+            website=website,
+            rating="4.8",
+            review_count="120",
+            category="Car wrap shop",
+            google_maps_url=google_maps_url,
+            source_keyword=keyword,
+        ),
+        keyword_task_id=keyword_task["id"],
+        query_text=keyword_task["query_text"],
+    )
+    return batch_id
 
 
 def test_settings_page_exposes_global_runtime_controls():
@@ -68,15 +147,26 @@ def test_main_window_clear_runtime_data_reinitializes_database(monkeypatch):
     application, window = create_application()
     batch_id = window.task_repository.create_batch("清理测试批次")
     window.current_batch_id = batch_id
+    window.refresh_task_run_page()
+    window.refresh_results()
+    window.refresh_website_exploration_page()
     assert window.task_repository.get_batch(batch_id)["id"] == batch_id
+    assert window.task_run_page.task_batch_combo.count() > 0
 
     monkeypatch.setattr(window, "_confirm_clear_runtime_data", lambda: True)
 
     window.clear_runtime_data_from_settings()
 
     assert window.current_batch_id is None
+    assert window.current_website_exploration_batch_id is None
     assert window.task_repository.get_latest_resumable_batch_id() is None
     assert window.business_repository.get_business_stats() == {"raw_hits": 0, "deduped_businesses": 0}
+    assert window.task_run_page.task_batch_combo.count() == 0
+    assert window.result_page.task_batch_combo.count() == 0
+    assert window.website_exploration_page.source_batch_combo.count() == 0
+    assert window.website_exploration_page.exploration_batch_combo.count() == 0
+    assert window.website_exploration_page.batch_table.rowCount() == 0
+    assert window.website_exploration_page.task_table.rowCount() == 0
 
     window.close()
     application.quit()
@@ -271,6 +361,337 @@ def test_website_exploration_page_creates_batch_from_selected_maps_task():
     assert window.website_exploration_page.task_table.rowCount() == 1
     assert window.website_exploration_page.task_table.item(0, 1).text() == "Alpha Wrap"
     assert window.website_exploration_page.task_table.item(0, 2).text() == "https://alpha.example.com"
+    assert window.website_exploration_page.start_button.isEnabled()
+
+    window.close()
+    application.quit()
+
+
+def test_task_run_page_selects_task_batch_for_execution():
+    """任务执行页应能显式选择要运行的 Task，并同步刷新关键词队列。"""
+    application, window = create_application()
+    first_batch_id = _create_maps_batch_with_business(
+        window,
+        batch_name="第一执行任务",
+        keyword="Car Wrap Shop",
+        city_name="柏林",
+        region_name="柏林州",
+        business_name="Alpha Wrap",
+        google_maps_url="https://maps.google.com/?cid=task-run-1",
+        website="https://alpha.example.com",
+    )
+    second_batch_id = _create_maps_batch_with_business(
+        window,
+        batch_name="第二执行任务",
+        keyword="PPF",
+        city_name="慕尼黑",
+        region_name="巴伐利亚州",
+        business_name="Beta Wrap",
+        google_maps_url="https://maps.google.com/?cid=task-run-2",
+        website="https://beta.example.com",
+    )
+
+    window.refresh_task_run_page()
+    combo_batch_ids = {
+        window.task_run_page.task_batch_combo.itemData(index)
+        for index in range(window.task_run_page.task_batch_combo.count())
+    }
+    assert first_batch_id in combo_batch_ids
+    assert second_batch_id in combo_batch_ids
+
+    window.task_run_page.select_task_batch(first_batch_id)
+    window.select_task_run_batch_from_page()
+    assert window.current_batch_id == first_batch_id
+    assert window.task_run_page.keyword_table.rowCount() == 1
+    assert window.task_run_page.keyword_table.item(0, 1).text() == "Car Wrap Shop"
+
+    window.task_run_page.select_task_batch(second_batch_id)
+    window.select_task_run_batch_from_page()
+    assert window.current_batch_id == second_batch_id
+    assert window.task_run_page.keyword_table.rowCount() == 1
+    assert window.task_run_page.keyword_table.item(0, 1).text() == "PPF"
+
+    window.close()
+    application.quit()
+
+
+def test_task_run_page_locks_task_selector_while_worker_is_running(monkeypatch):
+    """后台采集运行时应锁定任务选择器，避免前端显示的 Task 与线程实际 Task 不一致。"""
+
+    class FakeSignal:
+        """测试用信号对象，只记录连接函数。"""
+
+        def __init__(self):
+            self.connected = []
+
+        def connect(self, callback):
+            self.connected.append(callback)
+
+    class FakeTaskWorker:
+        """避免测试中真的启动浏览器的任务线程替身。"""
+
+        def __init__(self, *args, **kwargs):
+            self.log_message = FakeSignal()
+            self.task_changed = FakeSignal()
+            self.finished_summary = FakeSignal()
+            self.started = False
+
+        def isRunning(self):
+            return False
+
+        def start(self):
+            self.started = True
+
+    class FakeSummary:
+        """模拟任务线程结束摘要。"""
+
+        paused_by_failure_threshold = False
+        paused_by_user = False
+        stopped_by_user = False
+
+    monkeypatch.setattr(main_window_module, "TaskWorker", FakeTaskWorker)
+    application, window = create_application()
+    batch_id = window.task_repository.create_batch(
+        "运行锁定测试",
+        runtime_config={
+            "browser_name": "chrome",
+            "engine_name": "selenium",
+            "page_initial_wait_seconds": 0,
+            "keyword_wait_seconds_min": 0,
+            "keyword_wait_seconds_max": 0,
+            "scroll_wait_seconds_min": 0,
+            "scroll_wait_seconds_max": 0,
+            "max_scroll_rounds": 1,
+            "no_new_results_threshold": 1,
+            "page_load_timeout_seconds": 30,
+            "failure_threshold": 3,
+        },
+    )
+    window.task_repository.add_keyword_tasks(
+        batch_id,
+        [
+            KeywordTaskCreate(
+                keyword="Car Wrap Shop",
+                country_name="德国",
+                country_search_name="Germany",
+                region_name="柏林州",
+                region_search_name="Berlin",
+                city_name="柏林",
+                city_search_name="Berlin",
+                query_text="Car Wrap Shop in Berlin, Berlin, Germany",
+                search_url="https://www.google.com/maps/search/Car+Wrap+Shop+in+Berlin",
+            )
+        ],
+    )
+    window.current_batch_id = batch_id
+    window.refresh_task_run_page()
+
+    window.start_current_batch()
+
+    assert window.task_worker.started is True
+    assert not window.task_run_page.task_batch_combo.isEnabled()
+
+    window.on_task_worker_finished(FakeSummary())
+
+    assert window.task_run_page.task_batch_combo.isEnabled()
+
+    window.close()
+    application.quit()
+
+
+def test_website_exploration_batches_are_filtered_by_source_task():
+    """官网探索批次应按来源 Task 分组显示，不能把所有批次堆在一起。"""
+    application, window = create_application()
+    first_maps_batch_id = _create_maps_batch_with_business(
+        window,
+        batch_name="第一来源任务",
+        keyword="Car Wrap Shop",
+        city_name="柏林",
+        region_name="柏林州",
+        business_name="Alpha Wrap",
+        google_maps_url="https://maps.google.com/?cid=explore-filter-1",
+        website="https://alpha.example.com",
+    )
+    second_maps_batch_id = _create_maps_batch_with_business(
+        window,
+        batch_name="第二来源任务",
+        keyword="PPF",
+        city_name="慕尼黑",
+        region_name="巴伐利亚州",
+        business_name="Beta Wrap",
+        google_maps_url="https://maps.google.com/?cid=explore-filter-2",
+        website="https://beta.example.com",
+    )
+    first_exploration_batch_id = window.website_exploration_repository.create_batch_from_maps_task(
+        first_maps_batch_id
+    )
+    second_exploration_batch_id = window.website_exploration_repository.create_batch_from_maps_task(
+        second_maps_batch_id
+    )
+
+    window.refresh_website_exploration_page()
+    window.website_exploration_page.select_source_batch(first_maps_batch_id)
+    window.select_website_source_batch_from_page()
+
+    assert window.current_website_exploration_batch_id == first_exploration_batch_id
+    assert window.website_exploration_page.batch_table.rowCount() >= 1
+    first_visible_source_ids = {
+        window.website_exploration_page.batch_table.item(row, 1).text()
+        for row in range(window.website_exploration_page.batch_table.rowCount())
+    }
+    assert first_visible_source_ids == {str(first_maps_batch_id)}
+    assert window.website_exploration_page.selected_exploration_batch_id() == first_exploration_batch_id
+    assert window.website_exploration_page.task_table.rowCount() == 1
+    assert window.website_exploration_page.task_table.item(0, 1).text() == "Alpha Wrap"
+
+    window.website_exploration_page.select_source_batch(second_maps_batch_id)
+    window.select_website_source_batch_from_page()
+
+    assert window.current_website_exploration_batch_id == second_exploration_batch_id
+    assert window.website_exploration_page.batch_table.rowCount() >= 1
+    second_visible_source_ids = {
+        window.website_exploration_page.batch_table.item(row, 1).text()
+        for row in range(window.website_exploration_page.batch_table.rowCount())
+    }
+    assert second_visible_source_ids == {str(second_maps_batch_id)}
+    assert window.website_exploration_page.selected_exploration_batch_id() == second_exploration_batch_id
+    assert window.website_exploration_page.task_table.rowCount() == 1
+    assert window.website_exploration_page.task_table.item(0, 1).text() == "Beta Wrap"
+
+    window.close()
+    application.quit()
+
+
+def test_website_exploration_page_shows_current_batch_status_metrics():
+    """官网探索页应像任务执行页一样实时展示当前探索批次统计。"""
+    application, window = create_application()
+    maps_batch_id = _create_maps_batch_with_business(
+        window,
+        batch_name="探索统计来源",
+        keyword="Car Wrap Shop",
+        city_name="柏林",
+        region_name="柏林州",
+        business_name="Alpha Wrap",
+        google_maps_url="https://maps.google.com/?cid=explore-status-1",
+        website="https://alpha.example.com",
+    )
+    keyword_task = window.task_repository.list_keyword_tasks(maps_batch_id)[0]
+    window.business_repository.upsert_business(
+        BusinessRecord(
+            name="No Site Shop",
+            address="Street 2",
+            phone="+49 222",
+            website="",
+            rating="4.1",
+            review_count="22",
+            category="Car service",
+            google_maps_url="https://maps.google.com/?cid=explore-status-2",
+            source_keyword="Car Wrap Shop",
+        ),
+        keyword_task_id=keyword_task["id"],
+        query_text=keyword_task["query_text"],
+    )
+    exploration_batch_id = window.website_exploration_repository.create_batch_from_maps_task(maps_batch_id)
+
+    window.refresh_website_exploration_page()
+    window.website_exploration_page.select_source_batch(maps_batch_id)
+    window.select_website_source_batch_from_page()
+    window.website_exploration_page.select_exploration_batch(exploration_batch_id)
+    window.select_website_exploration_batch_from_page()
+
+    labels = window.website_exploration_page.status_labels
+    assert labels["运行状态"].text() == "待执行"
+    assert labels["总商家数"].text() == "2"
+    assert labels["已完成"].text() == "0"
+    assert labels["失败"].text() == "0"
+    assert labels["跳过"].text() == "1"
+    assert labels["待探索"].text() == "1"
+    assert labels["当前商家"].text() == "Alpha Wrap"
+    assert labels["当前官网"].text() == "https://alpha.example.com"
+
+    window.close()
+    application.quit()
+
+
+def test_main_window_starts_website_exploration_worker(monkeypatch):
+    """官网探索开始按钮应启动后台线程，并立即显示运行反馈。"""
+
+    class FakeSignal:
+        """测试用信号对象，只记录连接函数。"""
+
+        def __init__(self):
+            self.connected = []
+
+        def connect(self, callback):
+            self.connected.append(callback)
+
+    class FakeWebsiteExplorationWorker:
+        """避免测试中真实访问官网的探索线程替身。"""
+
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+            self.log_message = FakeSignal()
+            self.task_changed = FakeSignal()
+            self.finished_summary = FakeSignal()
+            self.started = False
+
+        def isRunning(self):
+            return False
+
+        def start(self):
+            self.started = True
+
+    monkeypatch.setattr(main_window_module, "WebsiteExplorationWorker", FakeWebsiteExplorationWorker)
+    application, window = create_application()
+    maps_batch_id = window.task_repository.create_batch("官网探索来源批次")
+    window.task_repository.add_keyword_tasks(
+        maps_batch_id,
+        [
+            KeywordTaskCreate(
+                keyword="Car Wrap Shop",
+                country_name="德国",
+                country_search_name="Germany",
+                region_name="柏林州",
+                region_search_name="Berlin",
+                city_name="柏林",
+                city_search_name="Berlin",
+                query_text="Car Wrap Shop in Berlin, Berlin, Germany",
+                search_url="https://www.google.com/maps/search/Car+Wrap+Shop+in+Berlin",
+            )
+        ],
+    )
+    keyword_task = window.task_repository.list_keyword_tasks(maps_batch_id)[0]
+    window.business_repository.upsert_business(
+        BusinessRecord(
+            name="Alpha Wrap",
+            address="Street 1",
+            phone="+49 111",
+            website="https://alpha.example.com",
+            rating="4.8",
+            review_count="120",
+            category="Car wrap shop",
+            google_maps_url="https://maps.google.com/?cid=1",
+            source_keyword="Car Wrap Shop",
+        ),
+        keyword_task_id=keyword_task["id"],
+        query_text=keyword_task["query_text"],
+    )
+    window.refresh_website_exploration_page()
+    window.website_exploration_page.max_depth_spin.setValue(2)
+    window.website_exploration_page.max_pages_spin.setValue(9)
+    window.website_exploration_page.timeout_seconds_spin.setValue(6)
+    window.create_website_exploration_batch()
+
+    window.start_website_exploration_batch()
+
+    assert window.website_exploration_worker.started is True
+    assert window.website_exploration_worker.kwargs["max_depth"] == 2
+    assert window.website_exploration_worker.kwargs["max_pages"] == 9
+    assert window.website_exploration_worker.kwargs["timeout_seconds"] == 6
+    assert window.website_exploration_worker.kwargs["browser_name"] == "chrome"
+    assert window.website_exploration_worker.kwargs["selenium_cache_dir"].parts[-2:] == ("drivers", "selenium-cache")
+    assert not window.website_exploration_page.running_progress.isHidden()
 
     window.close()
     application.quit()
@@ -309,6 +730,93 @@ def test_result_page_shows_website_exploration_columns():
     application.quit()
 
 
+def test_result_page_filters_businesses_by_selected_task_batch():
+    """结果管理页应以任务为基本单位查看商家结果。"""
+    application, window = create_application()
+    first_batch_id = window.task_repository.create_batch("第一任务")
+    second_batch_id = window.task_repository.create_batch("第二任务")
+    window.task_repository.add_keyword_tasks(
+        first_batch_id,
+        [
+            KeywordTaskCreate(
+                keyword="Car Wrap Shop",
+                country_name="德国",
+                country_search_name="Germany",
+                region_name="柏林州",
+                region_search_name="Berlin",
+                city_name="柏林",
+                city_search_name="Berlin",
+                query_text="Car Wrap Shop in Berlin, Berlin, Germany",
+                search_url="https://www.google.com/maps/search/Car+Wrap+Shop+in+Berlin",
+            )
+        ],
+    )
+    window.task_repository.add_keyword_tasks(
+        second_batch_id,
+        [
+            KeywordTaskCreate(
+                keyword="PPF",
+                country_name="德国",
+                country_search_name="Germany",
+                region_name="巴伐利亚州",
+                region_search_name="Bavaria",
+                city_name="慕尼黑",
+                city_search_name="Munich",
+                query_text="PPF in Munich, Bavaria, Germany",
+                search_url="https://www.google.com/maps/search/PPF+in+Munich",
+            )
+        ],
+    )
+    first_task = window.task_repository.list_keyword_tasks(first_batch_id)[0]
+    second_task = window.task_repository.list_keyword_tasks(second_batch_id)[0]
+    window.business_repository.upsert_business(
+        BusinessRecord(
+            name="Alpha Wrap",
+            address="Street 1",
+            phone="+49 111",
+            website="https://alpha.example.com",
+            rating="4.8",
+            review_count="120",
+            category="Car wrap shop",
+            google_maps_url="https://maps.google.com/?cid=1",
+            source_keyword="Car Wrap Shop",
+        ),
+        keyword_task_id=first_task["id"],
+        query_text=first_task["query_text"],
+    )
+    window.business_repository.upsert_business(
+        BusinessRecord(
+            name="Beta Wrap",
+            address="Street 2",
+            phone="+49 222",
+            website="https://beta.example.com",
+            rating="4.6",
+            review_count="88",
+            category="PPF shop",
+            google_maps_url="https://maps.google.com/?cid=2",
+            source_keyword="PPF",
+        ),
+        keyword_task_id=second_task["id"],
+        query_text=second_task["query_text"],
+    )
+
+    window.refresh_results()
+    window.result_page.select_task_batch(first_batch_id)
+    window.refresh_results()
+
+    assert window.result_page.result_table.rowCount() == 1
+    assert window.result_page.result_table.item(0, 0).text() == "Alpha Wrap"
+
+    window.result_page.select_task_batch(second_batch_id)
+    window.refresh_results()
+
+    assert window.result_page.result_table.rowCount() == 1
+    assert window.result_page.result_table.item(0, 0).text() == "Beta Wrap"
+
+    window.close()
+    application.quit()
+
+
 def test_settings_navigation_item_is_placed_at_bottom():
     """设置入口应固定在左侧导航底部，和普通业务页面分离。"""
     application, window = create_application()
@@ -340,6 +848,7 @@ def test_main_window_creates_batch_with_runtime_config_snapshot():
     first_checkbox = next(iter(window.task_config_page.region_checkboxes.values()))
     first_checkbox.setChecked(True)
     window.task_config_page.keyword_input.setPlainText("Car Wrap Shop")
+    window.task_config_page.task_name_input.setText("德国贴膜测试任务")
     window.task_config_page.max_scroll_rounds_spin.setValue(7)
     window.task_config_page.scroll_wait_min_spin.setValue(2)
     window.task_config_page.scroll_wait_max_spin.setValue(5)
@@ -348,6 +857,7 @@ def test_main_window_creates_batch_with_runtime_config_snapshot():
     batch = window.task_repository.get_batch(window.current_batch_id)
 
     assert batch["runtime_config"]["browser_name"] == "chrome"
+    assert batch["name"] == "德国贴膜测试任务"
     assert batch["runtime_config"]["max_scroll_rounds"] == 7
     assert batch["runtime_config"]["scroll_wait_seconds_min"] == 2
     assert batch["runtime_config"]["scroll_wait_seconds_max"] == 5

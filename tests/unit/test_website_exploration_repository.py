@@ -3,6 +3,7 @@ from gmap_collector.storage.database import initialize_database
 from gmap_collector.storage.repositories import BusinessRepository
 from gmap_collector.storage.task_repository import KeywordTaskCreate, TaskRepository
 from gmap_collector.storage.website_exploration_repository import WebsiteExplorationRepository
+from gmap_collector.parsers.website_info_parser import WebsiteInfo
 
 
 def test_create_exploration_batch_from_maps_task_creates_pending_and_skipped_tasks(tmp_path):
@@ -134,6 +135,67 @@ def test_create_exploration_batch_from_empty_maps_task_completes_immediately(tmp
     assert batch["total_businesses"] == 0
     assert batch["status"] == "completed"
     assert tasks == []
+
+
+def test_exploration_repository_saves_result_to_business_and_marks_task_success(tmp_path):
+    """官网探索结果应写回商家主表，并同步更新任务状态和批次统计。"""
+    database_path = tmp_path / "app.sqlite3"
+    initialize_database(database_path)
+    maps_repository = TaskRepository(database_path)
+    business_repository = BusinessRepository(database_path)
+    exploration_repository = WebsiteExplorationRepository(database_path)
+
+    maps_batch_id = maps_repository.create_batch(name="地图采集批次")
+    maps_repository.add_keyword_tasks(maps_batch_id, [_keyword_task("Car Wrap Shop")])
+    keyword_task = maps_repository.list_keyword_tasks(maps_batch_id)[0]
+    business_repository.upsert_business(
+        _business_record(
+            name="Alpha Wrap",
+            website="https://alpha.example.com",
+            google_maps_url="https://maps.google.com/?cid=1",
+        ),
+        keyword_task_id=keyword_task["id"],
+        query_text=keyword_task["query_text"],
+    )
+    exploration_batch_id = exploration_repository.create_batch_from_maps_task(source_batch_id=maps_batch_id)
+    task = exploration_repository.get_next_pending_task(exploration_batch_id)
+    assert task is not None
+
+    exploration_repository.save_task_result(
+        task_id=task["id"],
+        info=WebsiteInfo(
+            phones=["+49 30 1234 5678"],
+            emails=["sales@example-wrap.de", "info@example-wrap.de"],
+            instagram=["https://instagram.com/examplewrap"],
+            tiktok=["https://tiktok.com/@examplewrap"],
+            twitter_x=["https://x.com/examplewrap"],
+            facebook=["https://facebook.com/examplewrap"],
+            linkedin=["https://linkedin.com/company/examplewrap"],
+            youtube=["https://youtube.com/@examplewrap"],
+            whatsapp=["https://wa.me/493012345678"],
+            seo_keywords=["car wrap", "ppf"],
+        ),
+    )
+
+    business = business_repository.list_businesses()[0]
+    updated_task = exploration_repository.list_tasks(exploration_batch_id)[0]
+    batch = exploration_repository.get_batch(exploration_batch_id)
+
+    assert business["explored_phone"] == "+49 30 1234 5678"
+    assert business["emails"] == "sales@example-wrap.de,info@example-wrap.de"
+    assert business["instagram"] == "https://instagram.com/examplewrap"
+    assert business["tiktok"] == "https://tiktok.com/@examplewrap"
+    assert business["twitter_x"] == "https://x.com/examplewrap"
+    assert business["facebook"] == "https://facebook.com/examplewrap"
+    assert business["linkedin"] == "https://linkedin.com/company/examplewrap"
+    assert business["youtube"] == "https://youtube.com/@examplewrap"
+    assert business["whatsapp"] == "https://wa.me/493012345678"
+    assert business["seo_keywords"] == "car wrap,ppf"
+    assert business["website_exploration_status"] == "已完成"
+    assert business["website_explored_at"]
+    assert updated_task["status"] == "success"
+    assert batch["completed_businesses"] == 1
+    assert batch["status"] == "completed"
 
 
 def _keyword_task(keyword: str) -> KeywordTaskCreate:

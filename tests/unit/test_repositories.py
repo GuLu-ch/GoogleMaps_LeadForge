@@ -3,6 +3,7 @@ import sqlite3
 from gmap_collector.common.models import BusinessRecord
 from gmap_collector.storage.database import initialize_database
 from gmap_collector.storage.repositories import BusinessRepository
+from gmap_collector.storage.task_repository import KeywordTaskCreate, TaskRepository
 
 
 def test_upsert_business_deduplicates_by_google_maps_url_and_merges_keywords(tmp_path):
@@ -107,3 +108,64 @@ def test_business_repository_returns_website_exploration_fields(tmp_path):
     assert business["seo_keywords"] == ""
     assert business["website_exploration_status"] == "未探索"
     assert business["website_explored_at"] == ""
+
+
+def test_business_repository_lists_businesses_for_specific_task_batch(tmp_path):
+    """结果管理按任务查看时，只应返回该 Google Maps 批次命中的商家。"""
+    database_path = tmp_path / "app.sqlite3"
+    initialize_database(database_path)
+    task_repository = TaskRepository(database_path)
+    business_repository = BusinessRepository(database_path)
+    first_batch_id = task_repository.create_batch(name="第一任务")
+    second_batch_id = task_repository.create_batch(name="第二任务")
+    task_repository.add_keyword_tasks(first_batch_id, [_keyword_task("Car Wrap Shop", "Berlin")])
+    task_repository.add_keyword_tasks(second_batch_id, [_keyword_task("PPF", "Munich")])
+    first_task = task_repository.list_keyword_tasks(first_batch_id)[0]
+    second_task = task_repository.list_keyword_tasks(second_batch_id)[0]
+
+    business_repository.upsert_business(
+        _business_record("Alpha Wrap", "https://maps.google.com/?cid=1"),
+        keyword_task_id=first_task["id"],
+        query_text=first_task["query_text"],
+    )
+    business_repository.upsert_business(
+        _business_record("Beta Wrap", "https://maps.google.com/?cid=2"),
+        keyword_task_id=second_task["id"],
+        query_text=second_task["query_text"],
+    )
+
+    first_batch_businesses = business_repository.list_businesses(batch_id=first_batch_id)
+    second_batch_businesses = business_repository.list_businesses(batch_id=second_batch_id)
+
+    assert [business["name"] for business in first_batch_businesses] == ["Alpha Wrap"]
+    assert [business["name"] for business in second_batch_businesses] == ["Beta Wrap"]
+
+
+def _keyword_task(keyword: str, city: str) -> KeywordTaskCreate:
+    """构造关键词任务。"""
+    return KeywordTaskCreate(
+        keyword=keyword,
+        country_name="德国",
+        country_search_name="Germany",
+        region_name="测试州",
+        region_search_name="Test Region",
+        city_name=city,
+        city_search_name=city,
+        query_text=f"{keyword} in {city}, Test Region, Germany",
+        search_url=f"https://www.google.com/maps/search/{keyword.replace(' ', '+')}+in+{city}",
+    )
+
+
+def _business_record(name: str, google_maps_url: str) -> BusinessRecord:
+    """构造商家记录。"""
+    return BusinessRecord(
+        name=name,
+        address="Street 1",
+        phone="+49 111",
+        website="https://example.com",
+        rating="4.8",
+        review_count="120",
+        category="Car wrap shop",
+        google_maps_url=google_maps_url,
+        source_keyword="Car Wrap Shop",
+    )

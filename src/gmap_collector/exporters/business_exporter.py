@@ -32,31 +32,40 @@ EXPORT_COLUMNS = {
 }
 
 
-def export_businesses_to_csv(database_path: str | Path, output_path: str | Path, encoding: str = "utf-8-sig") -> Path:
+def export_businesses_to_csv(
+    database_path: str | Path,
+    output_path: str | Path,
+    encoding: str = "utf-8-sig",
+    batch_id: int | None = None,
+) -> Path:
     """从 SQLite 去重结果导出 CSV。"""
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    dataframe = _load_business_dataframe(database_path)
+    dataframe = _load_business_dataframe(database_path, batch_id=batch_id)
     dataframe.to_csv(output, index=False, encoding=encoding)
     return output
 
 
-def export_businesses_to_excel(database_path: str | Path, output_path: str | Path) -> Path:
+def export_businesses_to_excel(
+    database_path: str | Path,
+    output_path: str | Path,
+    batch_id: int | None = None,
+) -> Path:
     """从 SQLite 去重结果导出 Excel。"""
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    dataframe = _load_business_dataframe(database_path)
+    dataframe = _load_business_dataframe(database_path, batch_id=batch_id)
     dataframe.to_excel(output, index=False)
     return output
 
 
-def _load_business_dataframe(database_path: str | Path) -> pd.DataFrame:
+def _load_business_dataframe(database_path: str | Path, batch_id: int | None = None) -> pd.DataFrame:
     """读取商家记录并转换成导出表格。
 
     导出层不接收临时内存列表，始终从数据库读取，确保导出结果和全局去重状态一致。
     """
     repository = BusinessRepository(database_path)
-    records = repository.list_businesses()
+    records = repository.list_businesses(batch_id=batch_id)
     dataframe = pd.DataFrame(records)
 
     if dataframe.empty:

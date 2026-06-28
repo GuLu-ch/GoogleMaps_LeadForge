@@ -1,5 +1,6 @@
-from PySide6.QtWidgets import QGridLayout, QTableWidgetItem, QTextEdit, QWidget
-from qfluentwidgets import IndeterminateProgressBar, PrimaryPushButton, PushButton, TableWidget
+from PySide6.QtCore import QSignalBlocker
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QTableWidgetItem, QTextEdit, QWidget
+from qfluentwidgets import BodyLabel, ComboBox, IndeterminateProgressBar, PrimaryPushButton, PushButton, TableWidget
 
 from gmap_collector.gui.fluent_components import MetricCard, create_button_row, create_section_card, create_text_pair
 from gmap_collector.gui.layout_utils import build_adaptive_page
@@ -28,6 +29,18 @@ class TaskRunPage(QWidget):
         self.running_progress = IndeterminateProgressBar(start=False)
         self.running_progress.setVisible(False)
         status_layout.addWidget(self.running_progress)
+
+        selector_row = QWidget()
+        selector_layout = QHBoxLayout(selector_row)
+        selector_layout.setContentsMargins(0, 0, 0, 0)
+        selector_layout.setSpacing(10)
+        selector_label = BodyLabel("当前任务")
+        selector_label.setFixedWidth(86)
+        self.task_batch_combo = ComboBox()
+        self.task_batch_combo.setMinimumWidth(360)
+        selector_layout.addWidget(selector_label)
+        selector_layout.addWidget(self.task_batch_combo, 1)
+        status_layout.addWidget(selector_row)
 
         metric_widget = QWidget()
         metric_layout = QGridLayout(metric_widget)
@@ -101,6 +114,8 @@ class TaskRunPage(QWidget):
         self.stop_button = PushButton("停止")
         self.retry_failed_button = PushButton("重试失败关键词")
         self.export_button = PushButton("导出结果")
+        self.pause_button.setEnabled(False)
+        self.stop_button.setEnabled(False)
         root_layout.addWidget(
             create_button_row(
                 self.start_button,
@@ -111,6 +126,29 @@ class TaskRunPage(QWidget):
                 self.export_button,
             )
         )
+
+    def load_task_batches(self, batches: list[dict], selected_batch_id: int | None = None) -> None:
+        """加载可执行的任务批次下拉框。"""
+        current_batch_id = selected_batch_id if selected_batch_id is not None else self.selected_task_batch_id()
+        with QSignalBlocker(self.task_batch_combo):
+            self.task_batch_combo.clear()
+            for batch in batches:
+                self.task_batch_combo.addItem(self._task_batch_label(batch), userData=int(batch["id"]))
+            if current_batch_id is not None:
+                self.select_task_batch(current_batch_id)
+
+    def selected_task_batch_id(self) -> int | None:
+        """返回任务执行页当前选择的任务批次 ID。"""
+        current_data = self.task_batch_combo.currentData()
+        return int(current_data) if current_data is not None else None
+
+    def select_task_batch(self, batch_id: int) -> bool:
+        """按批次 ID 选中任务执行页的任务下拉项。"""
+        for index in range(self.task_batch_combo.count()):
+            if self.task_batch_combo.itemData(index) == batch_id:
+                self.task_batch_combo.setCurrentIndex(index)
+                return True
+        return False
 
     def load_tasks(
         self,
@@ -171,7 +209,18 @@ class TaskRunPage(QWidget):
         self.status_labels["当前城市"].setText(str(task.get("city_name", "-")))
         self.status_labels["已采集商家数"].setText(str(business_stats.get("raw_hits", 0)))
         self.status_labels["去重后商家数"].setText(str(business_stats.get("deduped_businesses", 0)))
-        self._set_progress_running(True)
+        self.set_running(True)
+
+    def set_running(self, running: bool) -> None:
+        """根据后台线程状态锁定执行控件，避免用户切换正在运行的任务。"""
+        self._set_progress_running(running)
+        self.task_batch_combo.setEnabled(not running)
+        self.start_button.setEnabled(not running)
+        self.resume_button.setEnabled(not running)
+        self.retry_failed_button.setEnabled(not running)
+        self.export_button.setEnabled(not running)
+        self.pause_button.setEnabled(running)
+        self.stop_button.setEnabled(running)
 
     def _current_task(self, tasks: list[dict]) -> dict:
         """优先返回正在执行的任务，其次返回下一条待执行任务。"""
@@ -186,6 +235,14 @@ class TaskRunPage(QWidget):
         engine_name = str(runtime_config.get("engine_name", "-")).title()
         browser_name = str(runtime_config.get("browser_name", "-")).title()
         return f"{engine_name} / {browser_name}"
+
+    def _task_batch_label(self, batch: dict) -> str:
+        """格式化任务执行页的任务下拉框文本。"""
+        return (
+            f"#{batch['id']} {batch['name']} | "
+            f"{self._status_text(batch['status'])} | "
+            f"{batch['completed_keywords']}/{batch['total_keywords']} 完成"
+        )
 
     def _status_text(self, status: str) -> str:
         """将数据库状态转换为界面显示文本。"""

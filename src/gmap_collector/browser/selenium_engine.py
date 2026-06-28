@@ -123,6 +123,19 @@ class SeleniumBrowserEngine(BrowserEngine):
         except TimeoutException:
             return False
 
+    def wait_for_page_ready(self, timeout_seconds: int = 20) -> bool:
+        """等待普通网页 DOM 完成加载。"""
+        if self.driver is None:
+            raise RuntimeError("Selenium 浏览器尚未启动")
+
+        try:
+            WebDriverWait(self.driver, timeout_seconds).until(
+                lambda driver: driver.execute_script("return document.readyState") in {"interactive", "complete"}
+            )
+            return True
+        except TimeoutException:
+            return False
+
     def _apply_common_options(self, options) -> None:
         """应用 Chrome 和 Edge 共用启动参数。"""
         options.add_argument("--start-maximized")

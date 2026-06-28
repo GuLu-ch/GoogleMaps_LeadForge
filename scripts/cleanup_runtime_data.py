@@ -32,6 +32,8 @@ CLEAN_DIRECTORY_CONTENTS = [
 
 KEEP_FILENAMES = {".gitkeep"}
 RESET_TABLES = [
+    "website_exploration_tasks",
+    "website_exploration_batches",
     "business_task_hits",
     "businesses",
     "keyword_tasks",

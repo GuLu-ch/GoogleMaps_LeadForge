@@ -13,6 +13,7 @@ from gmap_collector.gui.task_config_page import TaskConfigPage
 from gmap_collector.gui.task_run_page import TaskRunPage
 from gmap_collector.gui.task_worker import TaskWorker
 from gmap_collector.gui.website_exploration_page import WebsiteExplorationPage
+from gmap_collector.gui.website_exploration_worker import WebsiteExplorationWorker
 from gmap_collector.storage.database import initialize_database
 from gmap_collector.storage.repositories import BusinessRepository
 from gmap_collector.storage.task_repository import KeywordTaskCreate, TaskRepository
@@ -49,6 +50,7 @@ class MainWindow(FluentWindow):
         self.current_batch_id: int | None = None
         self.current_website_exploration_batch_id: int | None = None
         self.task_worker: TaskWorker | None = None
+        self.website_exploration_worker: WebsiteExplorationWorker | None = None
 
         self.task_config_page = TaskConfigPage(app_config=app_config, locations_config=locations_config, parent=self)
         self.task_run_page = TaskRunPage(self)
@@ -69,11 +71,16 @@ class MainWindow(FluentWindow):
         settings_item.setProperty("position", NavigationItemPosition.BOTTOM)
         self._connect_page_actions()
         self.restore_latest_resumable_batch()
+        self.refresh_task_run_page()
+        self.refresh_website_exploration_page()
+        self.refresh_results()
 
     def _connect_page_actions(self) -> None:
         """连接跨页面动作。"""
         self.task_config_page.create_task_button.clicked.connect(self.create_task_batch_from_preview)
         self.result_page.refresh_button.clicked.connect(self.refresh_results)
+        self.result_page.task_batch_combo.currentIndexChanged.connect(self.refresh_results)
+        self.task_run_page.task_batch_combo.currentIndexChanged.connect(self.select_task_run_batch_from_page)
         self.task_run_page.start_button.clicked.connect(self.start_current_batch)
         self.task_run_page.resume_button.clicked.connect(self.start_current_batch)
         self.task_run_page.pause_button.clicked.connect(self.pause_current_batch)
@@ -83,7 +90,15 @@ class MainWindow(FluentWindow):
         self.result_page.export_csv_button.clicked.connect(self.export_results_to_csv)
         self.result_page.export_excel_button.clicked.connect(self.export_results_to_excel)
         self.website_exploration_page.refresh_source_batches_button.clicked.connect(self.refresh_website_exploration_page)
+        self.website_exploration_page.source_batch_combo.currentIndexChanged.connect(
+            self.select_website_source_batch_from_page
+        )
+        self.website_exploration_page.exploration_batch_combo.currentIndexChanged.connect(
+            self.select_website_exploration_batch_from_page
+        )
         self.website_exploration_page.create_batch_button.clicked.connect(self.create_website_exploration_batch)
+        self.website_exploration_page.start_button.clicked.connect(self.start_website_exploration_batch)
+        self.website_exploration_page.stop_button.clicked.connect(self.stop_website_exploration_batch)
         self.settings_page.clear_runtime_data_button.clicked.connect(self.clear_runtime_data_from_settings)
 
     def create_task_batch_from_preview(self) -> None:
@@ -94,7 +109,7 @@ class MainWindow(FluentWindow):
             return
 
         runtime_config = self._build_runtime_config_snapshot()
-        batch_id = self.task_repository.create_batch("GUI 创建任务", runtime_config=runtime_config)
+        batch_id = self.task_repository.create_batch(self.task_config_page.task_name(), runtime_config=runtime_config)
         self.task_repository.add_keyword_tasks(
             batch_id,
             [
@@ -119,7 +134,23 @@ class MainWindow(FluentWindow):
 
     def refresh_task_run_page(self) -> None:
         """刷新任务执行页。"""
+        batches = self.task_repository.list_batches()
+        if self.current_batch_id is None and batches:
+            self.current_batch_id = int(batches[0]["id"])
+        self.task_run_page.load_task_batches(batches, selected_batch_id=self.current_batch_id)
         if self.current_batch_id is None:
+            self.task_run_page.load_tasks(
+                batch={
+                    "status": "pending",
+                    "total_keywords": 0,
+                    "completed_keywords": 0,
+                    "failed_keywords": 0,
+                },
+                tasks=[],
+                runtime_config=self._default_runtime_config(),
+                business_stats=self.business_repository.get_business_stats(),
+                consecutive_failures=0,
+            )
             return
         batch = self.task_repository.get_batch(self.current_batch_id)
         tasks = self.task_repository.list_keyword_tasks(self.current_batch_id)
@@ -131,23 +162,69 @@ class MainWindow(FluentWindow):
             consecutive_failures=self._consecutive_failure_count(tasks),
         )
 
+    def select_task_run_batch_from_page(self) -> None:
+        """从任务执行页切换当前 Task。"""
+        if self.task_worker is not None and self.task_worker.isRunning():
+            self.task_run_page.select_task_batch(self.current_batch_id)
+            self.task_run_page.append_log("任务正在运行，不能切换当前执行任务。")
+            return
+        selected_batch_id = self.task_run_page.selected_task_batch_id()
+        if selected_batch_id is None or selected_batch_id == self.current_batch_id:
+            return
+        self.current_batch_id = selected_batch_id
+        self.refresh_task_run_page()
+
     def refresh_results(self) -> None:
         """刷新结果管理页。"""
-        self.result_page.load_businesses(self.business_repository.list_businesses())
+        self.result_page.load_task_batches(self.task_repository.list_batches())
+        batch_id = self.result_page.selected_task_batch_id()
+        self.result_page.load_businesses(self.business_repository.list_businesses(batch_id=batch_id))
 
     def refresh_website_exploration_page(self) -> None:
         """刷新官网探索页的来源批次、探索批次和任务列表。"""
-        self.website_exploration_page.load_source_batches(self.task_repository.list_batches())
-        exploration_batches = self.website_exploration_repository.list_batches()
-        self.website_exploration_page.load_exploration_batches(exploration_batches)
-        if self.current_website_exploration_batch_id is None and exploration_batches:
-            self.current_website_exploration_batch_id = int(exploration_batches[0]["id"])
+        source_batches = self.task_repository.list_batches()
+        self.website_exploration_page.load_source_batches(source_batches)
+        source_batch_id = self.website_exploration_page.selected_source_batch_id()
+        exploration_batches = [
+            batch
+            for batch in self.website_exploration_repository.list_batches()
+            if source_batch_id is not None and int(batch["source_batch_id"]) == source_batch_id
+        ]
+        visible_exploration_ids = {int(batch["id"]) for batch in exploration_batches}
+        if self.current_website_exploration_batch_id not in visible_exploration_ids:
+            self.current_website_exploration_batch_id = int(exploration_batches[0]["id"]) if exploration_batches else None
+        self.website_exploration_page.load_exploration_batches(
+            exploration_batches,
+            selected_batch_id=self.current_website_exploration_batch_id,
+        )
         if self.current_website_exploration_batch_id is None:
             self.website_exploration_page.load_tasks([])
             return
+        batch = self.website_exploration_repository.get_batch(self.current_website_exploration_batch_id)
         self.website_exploration_page.load_tasks(
-            self.website_exploration_repository.list_tasks(self.current_website_exploration_batch_id)
+            self.website_exploration_repository.list_tasks(self.current_website_exploration_batch_id),
+            batch=batch,
         )
+
+    def select_website_source_batch_from_page(self) -> None:
+        """来源任务变化后，只展示该来源任务下的探索批次。"""
+        if self.website_exploration_worker is not None and self.website_exploration_worker.isRunning():
+            self.website_exploration_page.append_log("官网探索任务正在运行，不能切换来源任务。")
+            return
+        self.current_website_exploration_batch_id = None
+        self.refresh_website_exploration_page()
+
+    def select_website_exploration_batch_from_page(self) -> None:
+        """从官网探索页切换当前探索批次。"""
+        if self.website_exploration_worker is not None and self.website_exploration_worker.isRunning():
+            self.website_exploration_page.select_exploration_batch(self.current_website_exploration_batch_id)
+            self.website_exploration_page.append_log("官网探索任务正在运行，不能切换探索批次。")
+            return
+        selected_batch_id = self.website_exploration_page.selected_exploration_batch_id()
+        if selected_batch_id == self.current_website_exploration_batch_id:
+            return
+        self.current_website_exploration_batch_id = selected_batch_id
+        self.refresh_website_exploration_page()
 
     def create_website_exploration_batch(self) -> None:
         """从选中的 Google Maps 批次创建官网探索批次。"""
@@ -165,8 +242,64 @@ class MainWindow(FluentWindow):
             f"已创建官网探索批次：{exploration_batch_id}，来源 Google Maps 任务：{source_batch_id}"
         )
 
+    def start_website_exploration_batch(self) -> None:
+        """启动当前官网探索批次。"""
+        selected_batch_id = self.website_exploration_page.selected_exploration_batch_id()
+        if selected_batch_id is not None:
+            self.current_website_exploration_batch_id = selected_batch_id
+        if self.current_website_exploration_batch_id is None:
+            self.website_exploration_page.append_log("当前没有可执行的官网探索批次。")
+            return
+        if self.website_exploration_worker is not None and self.website_exploration_worker.isRunning():
+            self.website_exploration_page.append_log("官网探索任务正在运行中。")
+            return
+
+        batch = self.website_exploration_repository.get_batch(self.current_website_exploration_batch_id)
+        runtime_config = batch.get("runtime_config", {})
+        self.website_exploration_page.set_running(True)
+        self.website_exploration_worker = WebsiteExplorationWorker(
+            batch_id=self.current_website_exploration_batch_id,
+            database_path=self.database_path,
+            max_depth=int(runtime_config.get("max_depth", 1)),
+            max_pages=int(runtime_config.get("max_pages", 30)),
+            timeout_seconds=int(runtime_config.get("timeout_seconds", 15)),
+            browser_name=str(self.app_config.browser.default_browser),
+            selenium_cache_dir=resolve_project_path(self.app_config.paths.selenium_cache_dir),
+            parent=self,
+        )
+        self.website_exploration_worker.log_message.connect(self.website_exploration_page.append_log)
+        self.website_exploration_worker.task_changed.connect(self.refresh_website_exploration_after_task_change)
+        self.website_exploration_worker.finished_summary.connect(self.on_website_exploration_finished)
+        self.website_exploration_page.append_log(f"开始官网探索批次：{self.current_website_exploration_batch_id}")
+        self.website_exploration_worker.start()
+
+    def stop_website_exploration_batch(self) -> None:
+        """请求停止当前官网探索批次。"""
+        if self.website_exploration_worker is not None and self.website_exploration_worker.isRunning():
+            self.website_exploration_worker.request_stop()
+            self.website_exploration_page.append_log("已请求停止，当前官网处理完成后停止。")
+
+    def refresh_website_exploration_after_task_change(self) -> None:
+        """官网探索任务变化后刷新探索页和最终结果页。"""
+        self.refresh_website_exploration_page()
+        self.refresh_results()
+
+    def on_website_exploration_finished(self, summary: dict) -> None:
+        """官网探索线程结束后刷新页面。"""
+        self.website_exploration_page.set_running(False)
+        self.refresh_website_exploration_after_task_change()
+        if summary.get("stopped_by_user"):
+            self.website_exploration_page.append_log("官网探索已停止。")
+        else:
+            self.website_exploration_page.append_log(
+                f"官网探索完成：成功 {summary.get('completed_count', 0)} 个，失败 {summary.get('failed_count', 0)} 个。"
+            )
+
     def start_current_batch(self) -> None:
         """启动或继续当前任务批次。"""
+        selected_batch_id = self.task_run_page.selected_task_batch_id()
+        if selected_batch_id is not None:
+            self.current_batch_id = selected_batch_id
         if self.current_batch_id is None:
             self.task_run_page.append_log("当前没有可执行的任务批次。")
             return
@@ -180,6 +313,7 @@ class MainWindow(FluentWindow):
             return
 
         next_task = self.task_repository.get_next_pending_task(self.current_batch_id)
+        self.task_repository.mark_batch_running(self.current_batch_id)
         self.task_run_page.show_starting_state(
             runtime_config=runtime_config,
             task=next_task,
@@ -232,6 +366,7 @@ class MainWindow(FluentWindow):
 
     def on_task_worker_finished(self, summary) -> None:
         """任务线程结束后刷新页面。"""
+        self.task_run_page.set_running(False)
         self.refresh_task_run_page()
         self.refresh_results()
         if summary.paused_by_failure_threshold:
@@ -246,14 +381,14 @@ class MainWindow(FluentWindow):
     def export_results_to_csv(self) -> None:
         """导出去重商家结果为 CSV。"""
         output_path = self._export_path("csv")
-        export_businesses_to_csv(self.database_path, output_path)
+        export_businesses_to_csv(self.database_path, output_path, batch_id=self.result_page.selected_task_batch_id())
         self.task_run_page.append_log(f"已导出 CSV：{output_path}")
         self.result_page.detail_view.setText(f"已导出 CSV：{output_path}")
 
     def export_results_to_excel(self) -> None:
         """导出去重商家结果为 Excel。"""
         output_path = self._export_path("xlsx")
-        export_businesses_to_excel(self.database_path, output_path)
+        export_businesses_to_excel(self.database_path, output_path, batch_id=self.result_page.selected_task_batch_id())
         self.task_run_page.append_log(f"已导出 Excel：{output_path}")
         self.result_page.detail_view.setText(f"已导出 Excel：{output_path}")
 
@@ -265,6 +400,9 @@ class MainWindow(FluentWindow):
         """
         if self.task_worker is not None and self.task_worker.isRunning():
             self.task_run_page.append_log("任务正在运行，不能清空数据库和缓存。")
+            return
+        if self.website_exploration_worker is not None and self.website_exploration_worker.isRunning():
+            self.website_exploration_page.append_log("官网探索任务正在运行，不能清空数据库和缓存。")
             return
         if not self._confirm_clear_runtime_data():
             self.task_run_page.append_log("已取消清空数据库和缓存。")
@@ -282,18 +420,8 @@ class MainWindow(FluentWindow):
         self.website_exploration_repository = WebsiteExplorationRepository(self.database_path)
         self.current_batch_id = None
         self.current_website_exploration_batch_id = None
-        self.task_run_page.load_tasks(
-            batch={
-                "status": "pending",
-                "total_keywords": 0,
-                "completed_keywords": 0,
-                "failed_keywords": 0,
-            },
-            tasks=[],
-            runtime_config=self._default_runtime_config(),
-            business_stats=self.business_repository.get_business_stats(),
-            consecutive_failures=0,
-        )
+        self.website_exploration_worker = None
+        self.refresh_task_run_page()
         self.refresh_results()
         self.refresh_website_exploration_page()
         if removed_paths:

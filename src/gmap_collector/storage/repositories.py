@@ -84,12 +84,28 @@ class BusinessRepository:
             connection.commit()
             return int(existing["id"])
 
-    def list_businesses(self) -> list[dict[str, Any]]:
-        """按 ID 顺序返回全部去重后的商家记录。"""
+    def list_businesses(self, batch_id: int | None = None) -> list[dict[str, Any]]:
+        """按 ID 顺序返回去重后的商家记录。
+
+        `batch_id` 为空时返回全局去重结果；传入批次 ID 时，只返回该任务批次命中的商家。
+        """
+        where_clause = ""
+        parameters: tuple[Any, ...] = ()
+        if batch_id is not None:
+            where_clause = """
+                WHERE businesses.id IN (
+                    SELECT business_task_hits.business_id
+                    FROM business_task_hits
+                    INNER JOIN keyword_tasks ON keyword_tasks.id = business_task_hits.keyword_task_id
+                    WHERE keyword_tasks.batch_id = ?
+                )
+            """
+            parameters = (batch_id,)
+
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
-                """
+                f"""
                 SELECT
                     id, name, address, phone, website, rating, review_count,
                     category, google_maps_url, source_keywords,
@@ -98,8 +114,10 @@ class BusinessRepository:
                     website_exploration_status, website_explored_at,
                     first_seen_at, last_seen_at
                 FROM businesses
+                {where_clause}
                 ORDER BY id
-                """
+                """,
+                parameters,
             ).fetchall()
 
         return [dict(row) for row in rows]
