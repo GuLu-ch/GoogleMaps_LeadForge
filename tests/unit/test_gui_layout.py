@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QAbstractItemView, QHeaderView
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QSizePolicy
 from qfluentwidgets import IndeterminateProgressBar, NavigationItemPosition, ScrollArea, SettingCardGroup, TableWidget
 
 import gmap_collector.gui.main_window as main_window_module
@@ -480,6 +480,81 @@ def test_task_config_page_reload_regions_when_country_changes():
 
     assert set(page.region_checkboxes) == {"法兰西岛"}
     assert page.selected_region_names() == {"法兰西岛"}
+
+    page.close()
+    window.close()
+    application.quit()
+
+
+def test_task_config_regions_are_inside_bounded_scroll_area():
+    """地区复选框较多时，应只撑开局部滚动区，不能撑高整个配置页。"""
+    application, window = create_application()
+    many_regions = tuple(
+        RegionConfig(
+            name=f"测试地区 {index}",
+            search_name=f"Region {index}",
+            cities=(CityConfig(name=f"城市 {index}", search_name=f"City {index}"),),
+        )
+        for index in range(120)
+    )
+    locations_config = LocationsConfig(
+        countries=(
+            CountryConfig(
+                name="测试国家",
+                search_name="Testland",
+                regions=many_regions,
+            ),
+        )
+    )
+
+    page = TaskConfigPage(app_config=window.app_config, locations_config=locations_config)
+
+    assert page.region_scroll_area.minimumHeight() >= 320
+    assert page.region_scroll_area.sizePolicy().verticalPolicy() == QSizePolicy.Expanding
+    assert page.region_scroll_area.widgetResizable()
+    assert hasattr(page.region_scroll_area, "scrollDelagate")
+    assert not page.region_scroll_area.scrollDelagate.vScrollBar._isForceHidden
+    assert page.region_scroll_area.scrollDelagate.hScrollBar._isForceHidden
+    assert len(page.region_checkboxes) == 120
+    first_checkbox = page.region_checkboxes["测试地区 0"]
+    assert page.region_scroll_content.isAncestorOf(first_checkbox)
+
+    page.close()
+    window.close()
+    application.quit()
+
+
+def test_task_config_region_rows_keep_normal_height_when_region_count_is_small():
+    """地区很少时，复选框行高应保持正常，多余空间由底部弹性区占用。"""
+    application, window = create_application()
+    locations_config = LocationsConfig(
+        countries=(
+            CountryConfig(
+                name="小国家",
+                search_name="Smallland",
+                regions=(
+                    RegionConfig(
+                        name="地区 A",
+                        search_name="Region A",
+                        cities=(CityConfig(name="城市 A", search_name="City A"),),
+                    ),
+                    RegionConfig(
+                        name="地区 B",
+                        search_name="Region B",
+                        cities=(CityConfig(name="城市 B", search_name="City B"),),
+                    ),
+                ),
+            ),
+        )
+    )
+
+    page = TaskConfigPage(app_config=window.app_config, locations_config=locations_config)
+
+    assert page.region_container_layout.count() == 3
+    assert page.region_container_layout.itemAt(2).spacerItem() is not None
+    for checkbox in page.region_checkboxes.values():
+        assert checkbox.maximumHeight() <= 36
+        assert checkbox.sizePolicy().verticalPolicy() == QSizePolicy.Fixed
 
     page.close()
     window.close()

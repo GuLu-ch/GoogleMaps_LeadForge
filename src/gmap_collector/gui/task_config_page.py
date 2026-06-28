@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QSizePolicy, QTableWidgetItem, QVBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, CheckBox, ComboBox, PlainTextEdit, PrimaryPushButton, PushButton, TableWidget
+from PySide6.QtCore import Qt
+from qfluentwidgets import BodyLabel, CheckBox, ComboBox, PlainTextEdit, PrimaryPushButton, PushButton, ScrollArea, TableWidget
 
 from gmap_collector.config.schemas import AppConfig, LocationsConfig
 from gmap_collector.gui.fluent_components import create_button_row, create_labeled_spin, create_section_card
@@ -36,6 +37,7 @@ class TaskConfigPage(QWidget):
             "国家和地区",
             "从地区配置文件加载国家和地区，当前默认选择全部地区。",
         )
+        region_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.country_combo = ComboBox()
         self.country_combo.addItems([country.name for country in self.locations_config.countries])
         region_panel.addWidget(self.country_combo)
@@ -49,9 +51,21 @@ class TaskConfigPage(QWidget):
                 self.refresh_config_button,
             )
         )
-        self.region_container_layout = QVBoxLayout()
+        self.region_scroll_area = ScrollArea()
+        self.region_scroll_area.setObjectName("regionScrollArea")
+        self.region_scroll_area.setWidgetResizable(True)
+        self.region_scroll_area.setFrameShape(ScrollArea.NoFrame)
+        self.region_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.region_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.region_scroll_area.setMinimumHeight(380)
+        self.region_scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.region_scroll_content = QWidget()
+        self.region_scroll_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+        self.region_scroll_area.setWidget(self.region_scroll_content)
+        self.region_container_layout = QVBoxLayout(self.region_scroll_content)
+        self.region_container_layout.setContentsMargins(0, 0, 8, 0)
         self.region_container_layout.setSpacing(6)
-        region_panel.addLayout(self.region_container_layout)
+        region_panel.addWidget(self.region_scroll_area)
         self._load_region_checkboxes()
         region_panel.addStretch(1)
 
@@ -292,9 +306,12 @@ class TaskConfigPage(QWidget):
         country = self.selected_country()
         for region in country.regions:
             checkbox = CheckBox(region.name)
+            checkbox.setFixedHeight(32)
+            checkbox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             checkbox.stateChanged.connect(self.update_estimated_count)
             self.region_container_layout.addWidget(checkbox)
             self.region_checkboxes[region.name] = checkbox
+        self.region_container_layout.addStretch(1)
 
     def _connect_signals(self) -> None:
         """连接页面内部按钮事件。"""
