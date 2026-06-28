@@ -65,7 +65,8 @@ GMap/
 │       │   ├── task_config_page.py
 │       │   ├── task_run_page.py
 │       │   ├── task_worker.py
-│       │   └── website_exploration_page.py
+│       │   ├── website_exploration_page.py
+│       │   └── website_exploration_worker.py
 │       ├── tasks/
 │       │   ├── __init__.py
 │       │   └── keyword_builder.py
@@ -76,11 +77,14 @@ GMap/
 │       │   └── selenium_engine.py
 │       ├── parsers/
 │       │   ├── __init__.py
-│       │   └── maps_list_parser.py
+│       │   ├── maps_list_parser.py
+│       │   └── website_info_parser.py
 │       ├── services/
 │       │   ├── __init__.py
 │       │   ├── maps_crawler.py
-│       │   └── task_runner.py
+│       │   ├── task_runner.py
+│       │   ├── website_crawler.py
+│       │   └── website_exploration_service.py
 │       ├── storage/
 │       │   ├── __init__.py
 │       │   ├── database.py
@@ -105,7 +109,12 @@ GMap/
         ├── test_repositories.py
         ├── test_selenium_engine.py
         ├── test_task_repository.py
-        └── test_task_runner.py
+        ├── test_task_runner.py
+        ├── test_website_crawler.py
+        ├── test_website_exploration_repository.py
+        ├── test_website_exploration_service.py
+        ├── test_website_exploration_worker.py
+        └── test_website_info_parser.py
 ```
 
 ## 根目录文件
@@ -192,7 +201,7 @@ SQLite 负责保存：
 
 项目辅助脚本目录。
 
-- `cleanup_runtime_data.py`：清理本地运行数据库、日志、导出、调试输出和截图；默认保留关键词输入、配置文件和浏览器登录缓存，传入参数或由 GUI 设置页调用时可同步清理浏览器缓存。
+- `cleanup_runtime_data.py`：清理本地运行数据库、日志、导出、调试输出和截图；默认保留关键词输入、配置文件和浏览器登录缓存，传入参数或由 GUI 设置页调用时可同步清理浏览器缓存；数据库文件被占用时可清空 Google Maps 任务、商家、命中关系和官网探索相关业务表作为兜底。
 - `generate_locations_config.py`：一次性地区配置生成脚本，负责从本地国家 HTML 表和城市 JSON 数据生成 `config/locations.json`。
 - `open_login_browser.py`：直接启动系统真实 Chrome/Edge 进程打开 Google 登录页，并使用采集任务相同的项目内浏览器用户目录，便于后续采集复用登录状态；Chrome 默认优先使用 `chrome_proxy.exe`。
 
@@ -260,7 +269,8 @@ GUI 模块。
 - `task_config_page.py`：任务配置页控件，负责国家地区选择、地区复选框局部滚动区域、关键词、本次任务运行参数和任务预览表。
 - `task_run_page.py`：任务执行页控件，负责任务控制按钮、状态面板、关键词队列和运行日志。
 - `task_worker.py`：GUI 后台任务线程，负责在不阻塞主界面的情况下驱动 Selenium 执行当前批次。
-- `website_exploration_page.py`：官网探索页控件，负责来源任务选择、官网探索批次创建和探索任务列表展示。
+- `website_exploration_page.py`：官网探索页控件，负责来源任务选择、官网探索参数、探索批次选择、探索状态统计和探索任务列表展示。
+- `website_exploration_worker.py`：官网探索后台线程，负责顺序执行官网探索任务，并在静态请求失败或无核心联系方式时按需启动 Selenium 浏览器兜底。
 - `result_page.py`：结果管理页控件，负责筛选条件、商家结果表和详情区。
 - `settings_page.py`：设置页控件，负责外观主题、全局默认运行参数、项目路径和清空数据库/缓存按钮；项目开发文档不在该页面展示。
 - `table_utils.py`：表格列宽策略工具，统一处理默认列宽、手动拖拽、长列拉伸和滚动条策略。
@@ -298,6 +308,7 @@ GUI 模块。
 当前已实现：
 
 - `maps_list_parser.py`：解析 Google Maps 列表页商家卡片，提取名称、地址、电话、官网、评分、评论数量、分类和 Google Maps 链接；缺失字段保留空字符串。
+- `website_info_parser.py`：解析商家官网 HTML，提取电话、邮箱、Instagram、TikTok、Twitter / X、Facebook、LinkedIn、YouTube、WhatsApp 和 SEO Keywords。
 
 ### services/
 
@@ -307,6 +318,8 @@ GUI 模块。
 
 - `maps_crawler.py`：单个 Google Maps 搜索链接的采集服务，负责打开链接、等待结果 DOM、页面初始停留、滚动随机停留、解析结果、写入 SQLite 和记录命中关系。
 - `task_runner.py`：任务运行器，负责单线程顺序执行关键词任务、关键词间随机停留、暂停、停止和连续失败自动暂停。
+- `website_crawler.py`：官网静态抓取服务，负责按探索深度和最大页面数遍历同主域及其子域页面，并合并多页官网信息。
+- `website_exploration_service.py`：官网探索单任务执行服务，负责领取待执行官网任务、调用静态抓取、判断核心联系方式、执行浏览器兜底、写回结果或失败原因。
 
 ### storage/
 
@@ -326,6 +339,7 @@ GUI 模块。
 当前已实现：
 
 - `business_exporter.py`：从 SQLite 去重结果导出 CSV 和 Excel。
+  支持按 Task 批次过滤导出，导出字段和结果管理页保持一致。
 
 ## tests/
 
@@ -354,4 +368,9 @@ GUI 模块。
 - 任务运行器的顺序执行、关键词间停留、暂停和连续失败暂停。
 - 本地运行产物清理脚本，包括可选清理浏览器缓存。
 - 设置页清空数据库和缓存按钮，以及清理后重新初始化数据库的主窗口流程。
+- 官网信息解析器，覆盖电话、邮箱、社媒链接和 SEO Keywords 提取。
+- 官网静态抓取服务，覆盖深度限制、同主域限制、请求失败继续处理和超时参数传递。
+- 官网探索服务，覆盖结果写回、失败标记、浏览器兜底和最终状态统计。
+- 官网探索后台线程浏览器兜底逻辑。
+- GUI 任务化选择、运行中锁定、官网探索按来源任务过滤批次和探索状态卡片。
 - 登录浏览器脚本真实浏览器启动方式和项目内用户数据目录。
