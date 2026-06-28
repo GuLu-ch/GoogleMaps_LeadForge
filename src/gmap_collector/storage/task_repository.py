@@ -93,6 +93,21 @@ class TaskRepository:
         batch["runtime_config"] = _load_runtime_config(batch.get("runtime_config", "{}"))
         return batch
 
+    def list_batches(self) -> list[dict[str, Any]]:
+        """按创建顺序倒序返回任务批次，供其他模块选择来源任务。"""
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM task_batches
+                ORDER BY id DESC
+                """
+            ).fetchall()
+        batches = [dict(row) for row in rows]
+        for batch in batches:
+            batch["runtime_config"] = _load_runtime_config(batch.get("runtime_config", "{}"))
+        return batches
+
     def list_keyword_tasks(self, batch_id: int) -> list[dict[str, Any]]:
         """按创建顺序返回批次下的关键词任务。"""
         with self._connect() as connection:

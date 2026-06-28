@@ -12,9 +12,11 @@ from gmap_collector.gui.settings_page import SettingsPage
 from gmap_collector.gui.task_config_page import TaskConfigPage
 from gmap_collector.gui.task_run_page import TaskRunPage
 from gmap_collector.gui.task_worker import TaskWorker
+from gmap_collector.gui.website_exploration_page import WebsiteExplorationPage
 from gmap_collector.storage.database import initialize_database
 from gmap_collector.storage.repositories import BusinessRepository
 from gmap_collector.storage.task_repository import KeywordTaskCreate, TaskRepository
+from gmap_collector.storage.website_exploration_repository import WebsiteExplorationRepository
 from scripts.cleanup_runtime_data import cleanup_runtime_data
 
 
@@ -41,18 +43,22 @@ class MainWindow(FluentWindow):
         initialize_database(database_path)
         self.task_repository = TaskRepository(database_path)
         self.business_repository = BusinessRepository(database_path)
+        self.website_exploration_repository = WebsiteExplorationRepository(database_path)
         self.database_path = database_path
         self.app_config = app_config
         self.current_batch_id: int | None = None
+        self.current_website_exploration_batch_id: int | None = None
         self.task_worker: TaskWorker | None = None
 
         self.task_config_page = TaskConfigPage(app_config=app_config, locations_config=locations_config, parent=self)
         self.task_run_page = TaskRunPage(self)
         self.result_page = ResultPage(self)
+        self.website_exploration_page = WebsiteExplorationPage(self)
         self.settings_page = SettingsPage(project_root=project_root, app_config=app_config, parent=self)
 
         self.addSubInterface(self.task_config_page, FluentIcon.EDIT, "任务配置")
         self.addSubInterface(self.task_run_page, FluentIcon.PLAY, "任务执行")
+        self.addSubInterface(self.website_exploration_page, FluentIcon.LINK, "官网探索")
         self.addSubInterface(self.result_page, FluentIcon.VIEW, "结果管理")
         settings_item = self.addSubInterface(
             self.settings_page,
@@ -76,6 +82,8 @@ class MainWindow(FluentWindow):
         self.task_run_page.export_button.clicked.connect(self.export_results_to_csv)
         self.result_page.export_csv_button.clicked.connect(self.export_results_to_csv)
         self.result_page.export_excel_button.clicked.connect(self.export_results_to_excel)
+        self.website_exploration_page.refresh_source_batches_button.clicked.connect(self.refresh_website_exploration_page)
+        self.website_exploration_page.create_batch_button.clicked.connect(self.create_website_exploration_batch)
         self.settings_page.clear_runtime_data_button.clicked.connect(self.clear_runtime_data_from_settings)
 
     def create_task_batch_from_preview(self) -> None:
@@ -126,6 +134,36 @@ class MainWindow(FluentWindow):
     def refresh_results(self) -> None:
         """刷新结果管理页。"""
         self.result_page.load_businesses(self.business_repository.list_businesses())
+
+    def refresh_website_exploration_page(self) -> None:
+        """刷新官网探索页的来源批次、探索批次和任务列表。"""
+        self.website_exploration_page.load_source_batches(self.task_repository.list_batches())
+        exploration_batches = self.website_exploration_repository.list_batches()
+        self.website_exploration_page.load_exploration_batches(exploration_batches)
+        if self.current_website_exploration_batch_id is None and exploration_batches:
+            self.current_website_exploration_batch_id = int(exploration_batches[0]["id"])
+        if self.current_website_exploration_batch_id is None:
+            self.website_exploration_page.load_tasks([])
+            return
+        self.website_exploration_page.load_tasks(
+            self.website_exploration_repository.list_tasks(self.current_website_exploration_batch_id)
+        )
+
+    def create_website_exploration_batch(self) -> None:
+        """从选中的 Google Maps 批次创建官网探索批次。"""
+        source_batch_id = self.website_exploration_page.selected_source_batch_id()
+        if source_batch_id is None:
+            self.website_exploration_page.append_log("没有可用的 Google Maps 来源任务。")
+            return
+        exploration_batch_id = self.website_exploration_repository.create_batch_from_maps_task(
+            source_batch_id=source_batch_id,
+            runtime_config=self.website_exploration_page.exploration_runtime_config(),
+        )
+        self.current_website_exploration_batch_id = exploration_batch_id
+        self.refresh_website_exploration_page()
+        self.website_exploration_page.append_log(
+            f"已创建官网探索批次：{exploration_batch_id}，来源 Google Maps 任务：{source_batch_id}"
+        )
 
     def start_current_batch(self) -> None:
         """启动或继续当前任务批次。"""
@@ -241,7 +279,9 @@ class MainWindow(FluentWindow):
         initialize_database(self.database_path)
         self.task_repository = TaskRepository(self.database_path)
         self.business_repository = BusinessRepository(self.database_path)
+        self.website_exploration_repository = WebsiteExplorationRepository(self.database_path)
         self.current_batch_id = None
+        self.current_website_exploration_batch_id = None
         self.task_run_page.load_tasks(
             batch={
                 "status": "pending",
@@ -255,6 +295,7 @@ class MainWindow(FluentWindow):
             consecutive_failures=0,
         )
         self.refresh_results()
+        self.refresh_website_exploration_page()
         if removed_paths:
             removed_text = "、".join(str(path) for path in removed_paths)
             self.task_run_page.append_log(f"已清空运行数据和缓存：{removed_text}")

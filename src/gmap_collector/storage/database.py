@@ -40,6 +40,18 @@ CREATE TABLE IF NOT EXISTS businesses (
     name TEXT NOT NULL,
     address TEXT NOT NULL DEFAULT '',
     phone TEXT NOT NULL DEFAULT '',
+    explored_phone TEXT NOT NULL DEFAULT '',
+    emails TEXT NOT NULL DEFAULT '',
+    instagram TEXT NOT NULL DEFAULT '',
+    tiktok TEXT NOT NULL DEFAULT '',
+    twitter_x TEXT NOT NULL DEFAULT '',
+    facebook TEXT NOT NULL DEFAULT '',
+    linkedin TEXT NOT NULL DEFAULT '',
+    youtube TEXT NOT NULL DEFAULT '',
+    whatsapp TEXT NOT NULL DEFAULT '',
+    seo_keywords TEXT NOT NULL DEFAULT '',
+    website_exploration_status TEXT NOT NULL DEFAULT '未探索',
+    website_explored_at TEXT NOT NULL DEFAULT '',
     website TEXT NOT NULL DEFAULT '',
     rating TEXT NOT NULL DEFAULT '',
     review_count TEXT NOT NULL DEFAULT '',
@@ -59,6 +71,37 @@ CREATE TABLE IF NOT EXISTS business_task_hits (
     FOREIGN KEY (business_id) REFERENCES businesses(id),
     FOREIGN KEY (keyword_task_id) REFERENCES keyword_tasks(id)
 );
+
+CREATE TABLE IF NOT EXISTS website_exploration_batches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_batch_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    total_businesses INTEGER NOT NULL DEFAULT 0,
+    completed_businesses INTEGER NOT NULL DEFAULT 0,
+    failed_businesses INTEGER NOT NULL DEFAULT 0,
+    skipped_businesses INTEGER NOT NULL DEFAULT 0,
+    runtime_config TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (source_batch_id) REFERENCES task_batches(id)
+);
+
+CREATE TABLE IF NOT EXISTS website_exploration_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    batch_id INTEGER NOT NULL,
+    business_id INTEGER NOT NULL,
+    business_name TEXT NOT NULL,
+    website_url TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    failure_reason TEXT NOT NULL DEFAULT '',
+    last_run_at TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (batch_id) REFERENCES website_exploration_batches(id),
+    FOREIGN KEY (business_id) REFERENCES businesses(id),
+    UNIQUE(batch_id, business_id)
+);
 """
 
 
@@ -73,6 +116,23 @@ def initialize_database(database_path: str | Path) -> None:
     with sqlite3.connect(path) as connection:
         connection.executescript(SCHEMA_SQL)
         _ensure_column(connection, "task_batches", "runtime_config", "TEXT NOT NULL DEFAULT '{}'")
+        _ensure_column(connection, "businesses", "explored_phone", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, "businesses", "emails", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, "businesses", "instagram", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, "businesses", "tiktok", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, "businesses", "twitter_x", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, "businesses", "facebook", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, "businesses", "linkedin", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, "businesses", "youtube", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, "businesses", "whatsapp", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, "businesses", "seo_keywords", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(
+            connection,
+            "businesses",
+            "website_exploration_status",
+            "TEXT NOT NULL DEFAULT '未探索'",
+        )
+        _ensure_column(connection, "businesses", "website_explored_at", "TEXT NOT NULL DEFAULT ''")
         connection.commit()
 
 

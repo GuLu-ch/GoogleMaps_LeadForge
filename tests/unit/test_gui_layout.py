@@ -7,6 +7,7 @@ from qfluentwidgets import IndeterminateProgressBar, NavigationItemPosition, Scr
 import gmap_collector.gui.main_window as main_window_module
 from gmap_collector.app import create_application
 from gmap_collector.config.schemas import CityConfig, CountryConfig, LocationsConfig, RegionConfig
+from gmap_collector.common.models import BusinessRecord
 from gmap_collector.gui.fluent_components import NoWheelSpinBox
 from gmap_collector.gui.task_config_page import TaskConfigPage
 from gmap_collector.storage.task_repository import KeywordTaskCreate
@@ -159,7 +160,8 @@ def test_tables_use_interactive_columns_and_scrollbars():
     assert window.task_config_page.preview_table.horizontalScrollMode() == QAbstractItemView.ScrollPerPixel
 
     assert result_header.sectionResizeMode(0) == QHeaderView.Interactive
-    assert result_header.sectionResizeMode(7) == QHeaderView.Stretch
+    assert result_header.sectionResizeMode(12) == QHeaderView.Stretch
+    assert result_header.sectionResizeMode(19) == QHeaderView.Stretch
     assert window.result_page.result_table.columnWidth(0) >= 180
     assert window.result_page.result_table.columnWidth(1) >= 240
     assert hasattr(window.result_page.result_table, "scrollDelagate")
@@ -183,6 +185,7 @@ def test_main_window_and_pages_support_adaptive_layout():
         window.task_config_page,
         window.task_run_page,
         window.result_page,
+        window.website_exploration_page,
         window.settings_page,
     ]:
         scroll_area = page.findChild(ScrollArea, "pageScrollArea")
@@ -194,6 +197,113 @@ def test_main_window_and_pages_support_adaptive_layout():
 
     assert window.task_config_page.create_task_button.parent() is window.task_config_page
     assert window.settings_page.save_settings_button.parent() is window.settings_page
+
+    window.close()
+    application.quit()
+
+
+def test_main_window_exposes_website_exploration_page():
+    """主窗口应提供独立的官网探索页面入口。"""
+    application, window = create_application()
+
+    assert window.website_exploration_page.objectName() == "websiteExplorationPage"
+    assert isinstance(window.website_exploration_page.batch_table, TableWidget)
+    assert isinstance(window.website_exploration_page.task_table, TableWidget)
+    assert window.website_exploration_page.source_batch_combo.count() >= 0
+
+    window.close()
+    application.quit()
+
+
+def test_website_exploration_navigation_is_before_result_page():
+    """官网探索应位于结果管理之前，体现二次任务先于最终汇总结果。"""
+    application, window = create_application()
+
+    assert window.stackedWidget.indexOf(window.website_exploration_page) < window.stackedWidget.indexOf(window.result_page)
+
+    window.close()
+    application.quit()
+
+
+def test_website_exploration_page_creates_batch_from_selected_maps_task():
+    """官网探索页应能从选中的 Google Maps 批次创建探索批次并展示任务列表。"""
+    application, window = create_application()
+    maps_batch_id = window.task_repository.create_batch("官网探索来源批次")
+    window.task_repository.add_keyword_tasks(
+        maps_batch_id,
+        [
+            KeywordTaskCreate(
+                keyword="Car Wrap Shop",
+                country_name="德国",
+                country_search_name="Germany",
+                region_name="柏林州",
+                region_search_name="Berlin",
+                city_name="柏林",
+                city_search_name="Berlin",
+                query_text="Car Wrap Shop in Berlin, Berlin, Germany",
+                search_url="https://www.google.com/maps/search/Car+Wrap+Shop+in+Berlin",
+            )
+        ],
+    )
+    keyword_task = window.task_repository.list_keyword_tasks(maps_batch_id)[0]
+    window.business_repository.upsert_business(
+        BusinessRecord(
+            name="Alpha Wrap",
+            address="Street 1",
+            phone="+49 111",
+            website="https://alpha.example.com",
+            rating="4.8",
+            review_count="120",
+            category="Car wrap shop",
+            google_maps_url="https://maps.google.com/?cid=1",
+            source_keyword="Car Wrap Shop",
+        ),
+        keyword_task_id=keyword_task["id"],
+        query_text=keyword_task["query_text"],
+    )
+
+    window.refresh_website_exploration_page()
+    window.website_exploration_page.source_batch_combo.setCurrentIndex(0)
+    window.create_website_exploration_batch()
+
+    assert window.current_website_exploration_batch_id is not None
+    assert window.website_exploration_page.batch_table.rowCount() >= 1
+    assert window.website_exploration_page.task_table.rowCount() == 1
+    assert window.website_exploration_page.task_table.item(0, 1).text() == "Alpha Wrap"
+    assert window.website_exploration_page.task_table.item(0, 2).text() == "https://alpha.example.com"
+
+    window.close()
+    application.quit()
+
+
+def test_result_page_shows_website_exploration_columns():
+    """结果管理应展示官网探索新增字段，作为最终汇总视图。"""
+    application, window = create_application()
+
+    headers = [
+        window.result_page.result_table.horizontalHeaderItem(index).text()
+        for index in range(window.result_page.result_table.columnCount())
+    ]
+
+    assert headers[:15] == [
+        "商家名称",
+        "地址",
+        "电话",
+        "官网探索电话",
+        "Email",
+        "Instagram",
+        "TikTok",
+        "Twitter / X",
+        "Facebook",
+        "LinkedIn",
+        "YouTube",
+        "WhatsApp",
+        "SEO Keywords",
+        "官网探索状态",
+        "官网探索时间",
+    ]
+    assert "官网" in headers
+    assert "Google Maps 链接" in headers
 
     window.close()
     application.quit()

@@ -21,6 +21,18 @@ def test_export_businesses_to_csv_reads_deduplicated_database_rows(tmp_path):
         "商家名称",
         "地址",
         "电话",
+        "官网探索电话",
+        "Email",
+        "Instagram",
+        "TikTok",
+        "Twitter / X",
+        "Facebook",
+        "LinkedIn",
+        "YouTube",
+        "WhatsApp",
+        "SEO Keywords",
+        "官网探索状态",
+        "官网探索时间",
         "官网",
         "评分",
         "评论数量",
@@ -31,6 +43,7 @@ def test_export_businesses_to_csv_reads_deduplicated_database_rows(tmp_path):
         "最后更新时间",
     ]
     assert exported.iloc[0]["商家名称"] == "Example Wrap"
+    assert exported.iloc[0]["官网探索状态"] == "未探索"
 
 
 def test_export_businesses_to_excel_reads_deduplicated_database_rows(tmp_path):

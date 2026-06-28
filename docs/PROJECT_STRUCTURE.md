@@ -64,7 +64,8 @@ GMap/
 │       │   ├── table_utils.py
 │       │   ├── task_config_page.py
 │       │   ├── task_run_page.py
-│       │   └── task_worker.py
+│       │   ├── task_worker.py
+│       │   └── website_exploration_page.py
 │       ├── tasks/
 │       │   ├── __init__.py
 │       │   └── keyword_builder.py
@@ -84,7 +85,8 @@ GMap/
 │       │   ├── __init__.py
 │       │   ├── database.py
 │       │   ├── repositories.py
-│       │   └── task_repository.py
+│       │   ├── task_repository.py
+│       │   └── website_exploration_repository.py
 │       └── exporters/
 │           ├── __init__.py
 │           └── business_exporter.py
@@ -258,6 +260,7 @@ GUI 模块。
 - `task_config_page.py`：任务配置页控件，负责国家地区选择、地区复选框局部滚动区域、关键词、本次任务运行参数和任务预览表。
 - `task_run_page.py`：任务执行页控件，负责任务控制按钮、状态面板、关键词队列和运行日志。
 - `task_worker.py`：GUI 后台任务线程，负责在不阻塞主界面的情况下驱动 Selenium 执行当前批次。
+- `website_exploration_page.py`：官网探索页控件，负责来源任务选择、官网探索批次创建和探索任务列表展示。
 - `result_page.py`：结果管理页控件，负责筛选条件、商家结果表和详情区。
 - `settings_page.py`：设置页控件，负责外观主题、全局默认运行参数、项目路径和清空数据库/缓存按钮；项目开发文档不在该页面展示。
 - `table_utils.py`：表格列宽策略工具，统一处理默认列宽、手动拖拽、长列拉伸和滚动条策略。
@@ -314,6 +317,7 @@ GUI 模块。
 - `database.py`：SQLite 表结构初始化，并兼容旧数据库自动追加新增字段。
 - `repositories.py`：商家记录 upsert、Google Maps 链接去重、来源关键词合并。
 - `task_repository.py`：任务批次和关键词任务仓储，支持运行参数快照、状态流转、失败重试和最近可恢复批次查询。
+- `website_exploration_repository.py`：官网探索任务仓储，负责从 Google Maps 批次创建二次任务、维护探索批次状态和探索任务状态。
 
 ### exporters/
 

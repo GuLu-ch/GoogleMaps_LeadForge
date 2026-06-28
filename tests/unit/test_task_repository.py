@@ -148,3 +148,19 @@ def test_task_repository_persists_batch_runtime_config_snapshot(tmp_path):
     assert batch["runtime_config"]["max_scroll_rounds"] == 8
     assert batch["runtime_config"]["scroll_wait_seconds_min"] == 2
     assert batch["runtime_config"]["scroll_wait_seconds_max"] == 5
+
+
+def test_task_repository_lists_batches_for_source_selection(tmp_path):
+    """任务仓储应能按倒序返回批次，供官网探索页选择来源任务。"""
+    database_path = tmp_path / "app.sqlite3"
+    initialize_database(database_path)
+    repository = TaskRepository(database_path)
+
+    first_batch_id = repository.create_batch(name="第一批")
+    second_batch_id = repository.create_batch(name="第二批", runtime_config={"browser_name": "chrome"})
+
+    batches = repository.list_batches()
+
+    assert [batch["id"] for batch in batches] == [second_batch_id, first_batch_id]
+    assert batches[0]["name"] == "第二批"
+    assert batches[0]["runtime_config"]["browser_name"] == "chrome"

@@ -92,7 +92,11 @@ class BusinessRepository:
                 """
                 SELECT
                     id, name, address, phone, website, rating, review_count,
-                    category, google_maps_url, source_keywords, first_seen_at, last_seen_at
+                    category, google_maps_url, source_keywords,
+                    explored_phone, emails, instagram, tiktok, twitter_x,
+                    facebook, linkedin, youtube, whatsapp, seo_keywords,
+                    website_exploration_status, website_explored_at,
+                    first_seen_at, last_seen_at
                 FROM businesses
                 ORDER BY id
                 """
