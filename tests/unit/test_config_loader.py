@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from gmap_collector.common import paths as path_module
 from gmap_collector.config.loader import load_app_config, load_locations_config
 
 
@@ -31,3 +32,11 @@ def test_load_locations_config_reads_germany_regions_and_cities():
         for region in germany.regions
         for city in region.cities
     )
+
+
+def test_get_project_root_uses_executable_directory_when_frozen(monkeypatch, tmp_path):
+    """打包后项目根目录应固定为 exe 所在目录，便于随包迁移配置和运行数据。"""
+    monkeypatch.setattr(path_module.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(path_module.sys, "executable", str(tmp_path / "GoogleMaps_LeadForge.exe"))
+
+    assert path_module.get_project_root() == tmp_path

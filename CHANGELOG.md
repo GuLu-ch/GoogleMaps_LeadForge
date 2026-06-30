@@ -2,10 +2,14 @@
 
 本项目遵循中文更新记录。每次功能、文档、配置、数据库结构或开发流程发生变化时，都必须更新本文档。
 
-## [未发布]
+## [0.1.0] - 2026-06-30
 
 ### 新增
 
+- 新增 Windows exe 打包发布流程，使用 PyInstaller onedir 模式生成 `GoogleMaps_LeadForge.exe` 和发行版 zip 包。
+- 新增 `GoogleMaps_LeadForge.spec`，用于固定 PyInstaller 入口、隐藏导入和 qfluentwidgets 数据文件收集规则。
+- 新增 `scripts/build_windows_release.ps1`，用于从源码构建 `GoogleMaps_LeadForge-v0.1.0-windows-x64.zip` 发行包。
+- 打包后项目根目录改为 exe 所在目录，便于 `config/`、`data/`、`exports/`、`logs/` 和 `drivers/` 随发行目录整体迁移。
 - 初始化项目文档体系。
 - 明确第一版目标：基于 Python 的 Google Maps 商家信息采集桌面软件。
 - 明确技术路线：PySide6、PySide6-Fluent-Widgets、SQLite、Selenium、Playwright、JSON 配置、CSV/Excel 导出。

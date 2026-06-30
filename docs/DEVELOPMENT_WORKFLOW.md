@@ -113,6 +113,7 @@
 | GUI | 验证窗口启动、按钮事件、表格刷新 |
 | 浏览器引擎 | 验证 Chrome 或 Edge 启动和打开 URL |
 | 解析逻辑 | 验证可见 DOM 字段提取 |
+| Windows 打包 | 验证 PyInstaller 构建成功、zip 生成、打包后 exe `--check` 正常 |
 
 如果验证无法完成，必须说明原因。
 
@@ -162,3 +163,19 @@ Google Maps 页面结构可能变化。调试时必须遵守：
 - 已说明遗留风险。
 
 未满足以上条件时，不得声称完成。
+
+## 十二、发布流程
+
+发布 Windows 发行版时按以下顺序执行：
+
+1. 确认版本号和发布范围。
+2. 更新 `CHANGELOG.md`，把本次发布内容落到明确版本和日期。
+3. 确认 `README.md` 中的安装、启动和发行版说明与实际产物一致。
+4. 运行单元测试。
+5. 执行 `.\scripts\build_windows_release.ps1 -Version <版本号>`。
+6. 使用生成目录内的 `GoogleMaps_LeadForge.exe --check` 验证打包入口。
+7. 检查 `dist/GoogleMaps_LeadForge-v<版本号>-windows-x64.zip` 存在。
+8. 提交代码，创建版本 tag，推送到 GitHub。
+9. 创建 GitHub Release，并上传对应 zip 包。
+
+Release 说明应以 `CHANGELOG.md` 中对应版本内容为准。发布过程不允许把 GitHub token 写入仓库、文档、日志或命令历史中。

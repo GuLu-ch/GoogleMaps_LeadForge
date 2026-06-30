@@ -60,6 +60,24 @@ Google Maps 基础字段：
 
 ## 安装
 
+### 使用 Windows 发行版
+
+如果只是使用软件，可以从 GitHub Releases 下载 Windows 发行版压缩包：
+
+```text
+GoogleMaps_LeadForge-v0.1.0-windows-x64.zip
+```
+
+解压后进入目录，双击运行：
+
+```text
+GoogleMaps_LeadForge.exe
+```
+
+发行版目录内会包含 `config/`、`data/`、`exports/`、`logs/` 和 `drivers/`。配置、数据库、导出文件、日志和浏览器登录缓存都会保存在 exe 同级目录下，整个目录可以一起迁移。使用发行版仍需要电脑已安装 Google Chrome 或 Microsoft Edge。
+
+### 从源码运行
+
 从 GitHub 拉取项目：
 
 ```powershell
@@ -236,11 +254,27 @@ python -m scripts.cleanup_runtime_data --include-browser-cache
 
 根目录下的 `keywords`、`keyword.txt`、调试输出、日志、数据库、浏览器缓存和导出文件属于本地运行数据，默认不应提交到 Git。
 
+## 从源码构建 Windows 发行版
+
+如果需要自行从源码打包 Windows exe，请先完成源码环境安装，然后在项目根目录执行：
+
+```powershell
+.\scripts\build_windows_release.ps1 -Version 0.1.0
+```
+
+打包完成后会生成：
+
+```text
+dist\GoogleMaps_LeadForge-v0.1.0-windows-x64\
+dist\GoogleMaps_LeadForge-v0.1.0-windows-x64.zip
+```
+
 ## 注意事项
 
 - 当前采集过程使用单浏览器窗口顺序执行，适合稳定运行和人工观察。
 - 软件只解析 Google Maps 搜索结果列表中已经加载出来的内容，不点击进入商家详情页。
 - 软件不会自动绕过验证码、登录限制、访问限制或其他风控机制。
+- Windows 发行版只打包本软件和 Python 依赖，不内置 Google Chrome 或 Microsoft Edge。
 - 如果页面出现验证码、异常提示或疑似风控，应暂停任务并人工处理。
 - Google Maps 页面结构和商家官网结构可能变化，字段解析结果会受页面实际内容影响。
 - 官网探索优先使用静态 HTTP 请求，必要时会使用浏览器自动化作为兜底。

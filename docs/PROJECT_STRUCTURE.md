@@ -13,6 +13,7 @@ GMap/
 ├── pytest.ini
 ├── requirements.txt
 ├── environment.yml
+├── GoogleMaps_LeadForge.spec
 ├── .gitignore
 ├── config/
 │   ├── app_config.json
@@ -28,6 +29,7 @@ GMap/
 │   └── .gitkeep
 ├── scripts/
 │   ├── __init__.py
+│   ├── build_windows_release.ps1
 │   ├── cleanup_runtime_data.py
 │   ├── generate_locations_config.py
 │   └── open_login_browser.py
@@ -159,6 +161,16 @@ pip 依赖列表，明确标注核心依赖版本。
 
 Anaconda 环境配置，环境名称固定为 `gmap`。
 
+### GoogleMaps_LeadForge.spec
+
+PyInstaller 打包配置。
+
+负责：
+
+- 使用 `src/gmap_collector/main.py` 作为 Windows exe 入口。
+- 收集 `qfluentwidgets` 所需数据文件和隐藏导入。
+- 生成 `GoogleMaps_LeadForge` onedir 可分发目录。
+
 ### .gitignore
 
 忽略本地环境、缓存、数据库、日志、导出文件、浏览器缓存、本地关键词文件、调试输出、临时诊断脚本和本地测试数据样本。
@@ -202,6 +214,7 @@ SQLite 负责保存：
 项目辅助脚本目录。
 
 - `cleanup_runtime_data.py`：清理本地运行数据库、日志、导出、调试输出和截图；默认保留关键词输入、配置文件和浏览器登录缓存，传入参数或由 GUI 设置页调用时可同步清理浏览器缓存；数据库文件被占用时可清空 Google Maps 任务、商家、命中关系和官网探索相关业务表作为兜底。
+- `build_windows_release.ps1`：调用 PyInstaller 构建 Windows onedir 发行版，并把 `config/`、运行目录、README、LICENSE 和 CHANGELOG 复制到 exe 同级目录后生成 zip 包。
 - `generate_locations_config.py`：一次性地区配置生成脚本，负责从本地国家 HTML 表和城市 JSON 数据生成 `config/locations.json`。
 - `open_login_browser.py`：直接启动系统真实 Chrome/Edge 进程打开 Google 登录页，并使用采集任务相同的项目内浏览器用户目录，便于后续采集复用登录状态；Chrome 默认优先使用 `chrome_proxy.exe`。
 
